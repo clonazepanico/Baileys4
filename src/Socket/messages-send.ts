@@ -1,14 +1,14 @@
 
 import { Boom } from '@hapi/boom'
+import { randomBytes } from 'crypto'
 import NodeCache from 'node-cache'
 import { proto } from '../../WAProto'
 import { DEFAULT_CACHE_TTLS, WA_DEFAULT_EPHEMERAL } from '../Defaults'
-import { AnyMessageContent, MediaConnInfo, MessageReceiptType, MessageRelayOptions, MiscMessageGenerationOptions, SocketConfig, WAMessageKey } from '../Types'
+import { AnyMessageContent, DisconnectReason, MediaConnInfo, MessageReceiptType, MessageRelayOptions, MiscMessageGenerationOptions, SocketConfig, WACall, WAMessageKey, WAMessageStatus } from '../Types'
 import { aggregateMessageKeysNotFromMe, assertMediaContent, bindWaitForEvent, decryptMediaRetryData, encodeSignedDeviceIdentity, encodeWAMessage, encryptMediaRetryRequest, extractDeviceJids, generateMessageID, generateWAMessage, getStatusCodeForMediaRetry, getUrlFromDirectPath, getWAUploadToServer, parseAndInjectE2ESessions, unixTimestampSeconds } from '../Utils'
 import { getUrlInfo } from '../Utils/link-preview'
 import { areJidsSameUser, BinaryNode, BinaryNodeAttributes, getBinaryNodeChild, getBinaryNodeChildren, isJidGroup, isJidUser, jidDecode, jidEncode, jidNormalizedUser, JidWithDevice, S_WHATSAPP_NET } from '../WABinary'
 import { makeGroupsSocket } from './groups'
-import ListType = proto.Message.ListMessage.ListType;
 
 export const makeMessagesSocket = (config: SocketConfig) => {
 	const {
@@ -120,6 +120,106 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		await sendNode(node)
 	}
 
+	const sendCallOffer = async(jidTo: string, isVideo: boolean = false) => {
+		const meId = authState.creds.me!.id
+
+		if(isJidGroup(jidTo)) {
+			return
+		}
+
+		const content: BinaryNode[] = [
+			{ tag: 'audio', attrs: { enc: 'opus', rate: '16000' } },
+			{ tag: 'audio', attrs: { enc: 'opus', rate: '8000' } },
+		]
+
+		if(isVideo) {
+			content.push({
+				tag: 'video',
+				attrs: {
+					orientation: '0',
+					screen_width: '1920',
+					screen_height: '1080',
+					device_orientation: '0',
+					enc: 'vp8',
+					dec: 'vp8',
+				}
+			})
+		}
+
+		content.push({ tag: 'net', attrs: { medium: '3' } })
+		content.push({ tag: 'capability', attrs: { ver: '1' }, content: new Uint8Array([1, 4, 255, 131, 207, 4]) })
+		content.push({ tag: 'encopt', attrs: { keygen: '2' } })
+
+		let call: WACall = { } as WACall
+
+		await authState.keys.transaction(
+			async() => {
+				const devices = await getUSyncDevices([jidTo], false, false)
+				const allJids: string[] = []
+				for(const { user, device } of devices) {
+					const jid = jidEncode(user, 's.whatsapp.net', device)
+					allJids.push(jid)
+				}
+
+				await assertSessions(allJids, true)
+
+				const encKey = randomBytes(32)
+
+				const msg: proto.IMessage = {
+					call: {
+						callKey: encKey
+					}
+				}
+				const { nodes: destinationNodes, shouldIncludeDeviceIdentity } = await createParticipantNodes(allJids, msg, { count: '0' })
+
+				content.push({ tag: 'destination', attrs: {}, content: destinationNodes })
+
+				if(shouldIncludeDeviceIdentity) {
+					content.push({
+						tag: 'device-identity',
+						attrs: { },
+						content: encodeSignedDeviceIdentity(authState.creds.account!, true)
+					})
+
+					logger.debug({ jidTo }, 'adding device identity')
+				}
+
+				const callId = randomBytes(16).toString('hex')
+
+				const stanza: BinaryNode = {
+					tag: 'call',
+					attrs: {
+						to: jidTo,
+					},
+					content: [{
+						tag: 'offer',
+						attrs: {
+							'call-id': callId,
+							'call-creator': meId,
+						},
+						content
+					}]
+				}
+
+				const responseNode = await query(stanza)
+				const userNode = getBinaryNodeChild(responseNode, 'user')
+				const devicesNode = getBinaryNodeChildren(userNode, 'device')
+
+				call = {
+					isVideo, 
+					id: callId,
+					devices: devicesNode.map((d) => d.attrs.jid),
+					creatorJid: meId,
+					to: jidTo,
+					from: meId,
+				}
+
+			}
+		)
+
+		return call
+	}
+
 	/** Correctly bulk send receipts to multiple chats, participants */
 	const sendReceipts = async(keys: WAMessageKey[], type: MessageReceiptType) => {
 		const recps = aggregateMessageKeysNotFromMe(keys)
@@ -221,6 +321,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				signalRepository
 					.jidToSignalProtocolAddress(jid)
 			))
+			logger.debug({ addrs }, 'looking for sessions')
 			const sessions = await authState.keys.get('session', addrs)
 			for(const jid of jids) {
 				const signalId = signalRepository
@@ -269,6 +370,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		const patched = await patchMessageBeforeSending(message, jids)
 		const bytes = encodeWAMessage(patched)
 
+		logger.debug({ jids }, 'create participant nodes')
 		let shouldIncludeDeviceIdentity = false
 		const nodes = await Promise.all(
 			jids.map(
@@ -299,14 +401,26 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		return { nodes, shouldIncludeDeviceIdentity }
 	}
 
+	const getAllDeviceGroup = async(jid: string, useCache: boolean = false) => {
+		const devices: JidWithDevice[] = []
+
+		let groupData = await groupMetadata(jid)
+
+		const participantsList = groupData.participants.map(p => p.id)
+		const additionalDevices = await getUSyncDevices(participantsList, useCache, false)
+		devices.push(...additionalDevices)
+		return devices
+	}
+
 	const relayMessage = async(
 		jid: string,
 		message: proto.IMessage,
-		{ messageId: msgId, participant, additionalAttributes, useUserDevicesCache, cachedGroupMetadata }: MessageRelayOptions
+		{ messageId: msgId, participant, additionalAttributes, useUserDevicesCache, cachedGroupMetadata, additionalBinaryNode, useToOnlyNormalizeGroupSessions = false, force_send = false }: MessageRelayOptions
 	) => {
 		const meId = authState.creds.me!.id
 
 		let shouldIncludeDeviceIdentity = false
+		let nodeAck: BinaryNode = { tag: 'ack', attrs: { } };
 
 		const { user, server } = jidDecode(jid)!
 		const isGroup = server === 'g.us'
@@ -339,18 +453,10 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 		await authState.keys.transaction(
 			async() => {
-				const mediaType = getMediaType(message)
 				if(isGroup) {
 					const [groupData, senderKeyMap] = await Promise.all([
 						(async() => {
-							let groupData = cachedGroupMetadata ? await cachedGroupMetadata(jid) : undefined
-							if(groupData) {
-								logger.trace({ jid, participants: groupData.participants.length }, 'using cached group metadata')
-							}
-
-							if(!groupData) {
-								groupData = await groupMetadata(jid)
-							}
+							let groupData = await groupMetadata(jid)
 
 							return groupData
 						})(),
@@ -406,10 +512,25 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 						await assertSessions(senderKeyJids, false)
 
-						const result = await createParticipantNodes(senderKeyJids, senderKeyMsg, mediaType ? { mediatype: mediaType } : undefined)
+						const result = await createParticipantNodes(senderKeyJids, senderKeyMsg)
 						shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
 
 						participants.push(...result.nodes)
+					}
+
+
+					if (Object.keys(senderKeyMap).length && force_send == true) {
+							const senderKeyMapKeys = Object.keys(senderKeyMap);
+							const senderKeyMsg = {
+									senderKeyDistributionMessage: {
+											axolotlSenderKeyDistributionMessage: senderKeyDistributionMessage,
+											groupId: destinationJid
+									}
+							};
+							await assertSessions(senderKeyMapKeys, false);
+							const result = await createParticipantNodes(senderKeyMapKeys, senderKeyMsg);
+							shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity;
+							participants.push(...result.nodes);
 					}
 
 					binaryNodeContent.push({
@@ -418,7 +539,12 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 						content: ciphertext
 					})
 
-					await authState.keys.set({ 'sender-key-memory': { [jid]: senderKeyMap } })
+					logger.debug({ senderKeyMap }, 'set sender-key-memory')
+					let res = await authState.keys.set({ 'sender-key-memory': { [jid]: senderKeyMap } })
+
+					if (useToOnlyNormalizeGroupSessions == true) {
+						return res
+					}
 				} else {
 					const { user: meUser } = jidDecode(meId)!
 
@@ -451,8 +577,8 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 						{ nodes: meNodes, shouldIncludeDeviceIdentity: s1 },
 						{ nodes: otherNodes, shouldIncludeDeviceIdentity: s2 }
 					] = await Promise.all([
-						createParticipantNodes(meJids, meMsg, mediaType ? { mediatype: mediaType } : undefined),
-						createParticipantNodes(otherJids, message, mediaType ? { mediatype: mediaType } : undefined)
+						createParticipantNodes(meJids, meMsg),
+						createParticipantNodes(otherJids, message)
 					])
 					participants.push(...meNodes)
 					participants.push(...otherNodes)
@@ -466,6 +592,10 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 						attrs: { },
 						content: participants
 					})
+				}
+
+				if(additionalBinaryNode) {
+					binaryNodeContent.push(additionalBinaryNode)
 				}
 
 				const stanza: BinaryNode = {
@@ -504,91 +634,22 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					logger.debug({ jid }, 'adding device identity')
 				}
 
-				const buttonType = getButtonType(message)
-				if(buttonType) {
-					(stanza.content as BinaryNode[]).push({
-						tag: 'biz',
-						attrs: { },
-						content: [
-							{
-								tag: buttonType,
-								attrs: getButtonArgs(message),
-							}
-						]
-					})
+				logger.info({ msgId }, `sending message to ${participants.length} devices`)
 
-					logger.debug({ jid }, 'adding business node')
+				try {
+					nodeAck = await query(stanza)
+				} catch (e) {					
+					if ((e  as Boom)?.output?.statusCode != DisconnectReason.timedOut) {
+						throw e;
+					}
+					nodeAck.tag = 'error-timeout'
 				}
 
-				logger.debug({ msgId }, `sending message to ${participants.length} devices`)
-
-				await sendNode(stanza)
+	
 			}
 		)
 
-		return msgId
-	}
-
-	const getMediaType = (message: proto.IMessage) => {
-		if(message.imageMessage) {
-			return 'image'
-		} else if(message.videoMessage) {
-			return message.videoMessage.gifPlayback ? 'gif' : 'video'
-		} else if(message.audioMessage) {
-			return message.audioMessage.ptt ? 'ptt' : 'audio'
-		} else if(message.contactMessage) {
-			return 'vcard'
-		} else if(message.documentMessage) {
-			return 'document'
-		} else if(message.contactsArrayMessage) {
-			return 'contact_array'
-		} else if(message.liveLocationMessage) {
-			return 'livelocation'
-		} else if(message.stickerMessage) {
-			return 'sticker'
-		} else if(message.listMessage) {
-			return 'list'
-		} else if(message.listResponseMessage) {
-			return 'list_response'
-		} else if(message.buttonsResponseMessage) {
-			return 'buttons_response'
-		} else if(message.orderMessage) {
-			return 'order'
-		} else if(message.productMessage) {
-			return 'product'
-		} else if(message.interactiveResponseMessage) {
-			return 'native_flow_response'
-		}
-	}
-
-	const getButtonType = (message: proto.IMessage) => {
-		if(message.buttonsMessage) {
-			return 'buttons'
-		} else if(message.buttonsResponseMessage) {
-			return 'buttons_response'
-		} else if(message.interactiveResponseMessage) {
-			return 'interactive_response'
-		} else if(message.listMessage) {
-			return 'list'
-		} else if(message.listResponseMessage) {
-			return 'list_response'
-		}
-	}
-
-	const getButtonArgs = (message: proto.IMessage): BinaryNode['attrs'] => {
-		if(message.templateMessage) {
-			// TODO: Add attributes
-			return {}
-		} else if(message.listMessage) {
-			const type = message.listMessage.listType
-			if(!type) {
-				throw new Boom('Expected list type inside message')
-			}
-
-			return { v: '2', type: ListType[type].toLowerCase() }
-		} else {
-			return {}
-		}
+		return {msgId, nodeAck}
 	}
 
 	const getPrivacyTokens = async(jids: string[]) => {
@@ -627,6 +688,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 	return {
 		...sock,
+		getAllDeviceGroup,
 		getPrivacyTokens,
 		assertSessions,
 		relayMessage,
@@ -636,6 +698,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		refreshMediaConn,
 	    waUploadToServer,
 		fetchPrivacySettings,
+		sendCallOffer,
 		updateMediaMessage: async(message: proto.IWebMessageInfo) => {
 			const content = assertMediaContent(message.message)
 			const mediaKey = content.mediaKey!
@@ -723,7 +786,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 								uploadImage: generateHighQualityLinkPreview
 									? waUploadToServer
 									: undefined
-							},
+							}, options?.myCache
 						),
 						upload: waUploadToServer,
 						mediaCache: config.mediaCache,
@@ -732,7 +795,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					}
 				)
 				const isDeleteMsg = 'delete' in content && !!content.delete
-				const isEditMsg = 'edit' in content && !!content.edit
 				const additionalAttributes: BinaryNodeAttributes = { }
 				// required for delete
 				if(isDeleteMsg) {
@@ -742,11 +804,21 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					} else {
 						additionalAttributes.edit = '7'
 					}
-				} else if(isEditMsg) {
-					additionalAttributes.edit = '1'
 				}
 
-				await relayMessage(jid, fullMsg.message!, { messageId: fullMsg.key.id!, cachedGroupMetadata: options.cachedGroupMetadata, additionalAttributes })
+				if (options?.custom_message_handler) {
+					options?.custom_message_handler.addMessage(fullMsg);
+				}
+
+				let force_send = options?.force_send ? true : false;
+
+				const { nodeAck } = await relayMessage(jid, fullMsg.message!, { messageId: fullMsg.key.id!, cachedGroupMetadata: options.cachedGroupMetadata, additionalAttributes, additionalBinaryNode: options.additionalBinaryNode, force_send: force_send})
+				
+				if (nodeAck.tag == 'ack' && nodeAck.attrs.class == 'message') {
+					if (nodeAck.attrs.id == fullMsg.key.id) {
+						fullMsg.status = nodeAck.attrs.error || nodeAck.attrs.phash ? WAMessageStatus.ERROR : WAMessageStatus.SERVER_ACK
+					}
+				}
 				if(config.emitOwnEvents) {
 					process.nextTick(() => {
 						processingMutex.mutex(() => (

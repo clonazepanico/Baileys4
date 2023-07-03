@@ -34,7 +34,7 @@ type BaileysEventData = Partial<BaileysEventMap>
 
 const BUFFERABLE_EVENT_SET = new Set<BaileysEvent>(BUFFERABLE_EVENT)
 
-type BaileysBufferableEventEmitter = BaileysEventEmitter & {
+export type BaileysBufferableEventEmitter = BaileysEventEmitter & {
 	/** Use to process events in a batch */
 	process(handler: (events: BaileysEventData) => void | Promise<void>): (() => void)
 	/**

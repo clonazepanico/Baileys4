@@ -309,11 +309,23 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 export const extractGroupMetadata = (result: BinaryNode) => {
 	const group = getBinaryNodeChild(result, 'group')!
 	const descChild = getBinaryNodeChild(group, 'description')
+	const communityNode = getBinaryNodeChild(group, 'linked_parent')
+	const communityNodeSettings = getBinaryNodeChild(group, 'parent')
+	
 	let desc: string | undefined
 	let descId: string | undefined
+	let descTime: number | undefined
+	let descOwner: string | undefined
 	if(descChild) {
 		desc = getBinaryNodeChildString(descChild, 'body')
 		descId = descChild.attrs.id
+		descTime = +descChild.attrs.t
+		descOwner = descChild.attrs.participant
+	}
+
+	let communityId: string | undefined
+	if (communityNode) {
+		communityId = communityNode.attrs.jid
 	}
 
 	const groupId = group.attrs.id.includes('@') ? group.attrs.id : jidEncode(group.attrs.id, 'g.us')
@@ -328,6 +340,11 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 		owner: group.attrs.creator ? jidNormalizedUser(group.attrs.creator) : undefined,
 		desc,
 		descId,
+		descTime,
+		descOwner,
+		communityId,
+		community: !!communityNodeSettings,
+		communityDefaultGroup: !!getBinaryNodeChild(group, 'default_sub_group'), 
 		restrict: !!getBinaryNodeChild(group, 'locked'),
 		announce: !!getBinaryNodeChild(group, 'announcement'),
 		participants: getBinaryNodeChildren(group, 'participant').map(

@@ -60,6 +60,7 @@ export const makeSocket = (config: SocketConfig) => {
 	const keys = addTransactionCapability(authState.keys, logger, transactionOpts)
 	const signalRepository = makeSignalRepository({ creds, keys })
 
+
 	let lastDateRecv: Date
 	let epoch = 1
 	let keepAliveReq: NodeJS.Timeout
@@ -76,6 +77,7 @@ export const makeSocket = (config: SocketConfig) => {
 			throw new Boom('Connection Closed', { statusCode: DisconnectReason.connectionClosed })
 		}
 
+		logger.debug({ data_length: data.length }, 'encode frame')
 		const bytes = noise.encodeFrame(data)
 		await promiseTimeout<void>(
 			connectTimeoutMs,
@@ -325,6 +327,7 @@ export const makeSocket = (config: SocketConfig) => {
 		clearInterval(keepAliveReq)
 		clearTimeout(qrTimer)
 
+
 		ws.removeAllListeners('close')
 		ws.removeAllListeners('error')
 		ws.removeAllListeners('open')
@@ -333,7 +336,9 @@ export const makeSocket = (config: SocketConfig) => {
 		if(!ws.isClosed && !ws.isClosing) {
 			try {
 				ws.close()
-			} catch{ }
+			} catch(wsError) {
+				logger.error({ wsError }, 'Error in close socker')
+			}
 		}
 
 		ev.emit('connection.update', {
@@ -382,10 +387,11 @@ export const makeSocket = (config: SocketConfig) => {
 				check if it's been a suspicious amount of time since the server responded with our last seen
 				it could be that the network is down
 			*/
-			if(diff > keepAliveIntervalMs + 5000) {
+			if(diff > keepAliveIntervalMs + 360000) {
 				end(new Boom('Connection was lost', { statusCode: DisconnectReason.connectionLost }))
 			} else if(ws.isOpen) {
 				// if its all good, send a keep alive request
+				logger.debug({ lastDateRecv, keepAliveIntervalMs }, 'ping server')
 				query(
 					{
 						tag: 'iq',
@@ -397,10 +403,13 @@ export const makeSocket = (config: SocketConfig) => {
 						},
 						content: [{ tag: 'ping', attrs: {} }]
 					}
-				)
-					.catch(err => {
-						logger.error({ trace: err.stack }, 'error in sending keep alive')
-					})
+				).then((frame) => {
+					logger.debug({ frame, lastDateRecv }, 'pong server')
+					// redundant but apparently necessary line.
+					lastDateRecv = new Date()
+				}).catch(err => {
+					logger.error({ trace: err.stack }, 'error in sending keep alive')
+				})
 			} else {
 				logger.warn('keep alive called when WS not open')
 			}
@@ -569,12 +578,14 @@ export const makeSocket = (config: SocketConfig) => {
 		const offlineNotifs = +(child?.attrs.count || 0)
 
 		logger.info(`handled ${offlineNotifs} offline messages/notifications`)
+		ev.emit('connection.update', { offline_notifications: offlineNotifs })
+
 		if(didStartBuffer) {
 			ev.flush()
 			logger.trace('flushed events for initial buffer')
 		}
 
-		ev.emit('connection.update', { receivedPendingNotifications: true })
+		ev.emit('connection.update', { receivedPendingNotifications: true, offline_notifications: 0 })
 	})
 
 	// update credentials when required

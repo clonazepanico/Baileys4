@@ -2,11 +2,11 @@
 import NodeCache from 'node-cache'
 import { proto } from '../../WAProto'
 import { DEFAULT_CACHE_TTLS, KEY_BUNDLE_TYPE, MIN_PREKEY_COUNT } from '../Defaults'
-import { MessageReceiptType, MessageRelayOptions, MessageUserReceipt, SocketConfig, WACallEvent, WAMessageKey, WAMessageStatus, WAMessageStubType, WAPatchName } from '../Types'
+import { MessageReceiptType, MessageRelayOptions, MessageUserReceipt, MessageUserReceiptUpdate, SocketConfig, WACall, WACallEvent, WAMessageKey, WAMessageStatus, WAMessageStubType, WAPatchName } from '../Types'
 import { decodeMediaRetryNode, decryptMessageNode, delay, encodeBigEndian, encodeSignedDeviceIdentity, getCallStatusFromNode, getHistoryMsg, getNextPreKeys, getStatusFromReceiptType, unixTimestampSeconds, xmppPreKey, xmppSignedPreKey } from '../Utils'
 import { makeMutex } from '../Utils/make-mutex'
 import { cleanMessage } from '../Utils/process-message'
-import { areJidsSameUser, BinaryNode, getAllBinaryNodeChildren, getBinaryNodeChild, getBinaryNodeChildren, isJidGroup, isJidUser, jidDecode, jidNormalizedUser, S_WHATSAPP_NET } from '../WABinary'
+import { areJidsSameUser, BinaryNode, getAllBinaryNodeChildren, getBinaryNodeChild, getBinaryNodeChildren, getBinaryNodeChildString, isJidGroup, isJidUser, jidDecode, jidNormalizedUser, S_WHATSAPP_NET } from '../WABinary'
 import { extractGroupMetadata } from './groups'
 import { makeMessagesSocket } from './messages-send'
 
@@ -14,6 +14,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	const {
 		logger,
 		retryRequestDelayMs,
+		sendMessagesAgainDelayMs,
 		getMessage,
 		shouldIgnoreJid
 	} = config
@@ -33,6 +34,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		relayMessage,
 		sendReceipt,
 		uploadPreKeys,
+		profilePictureUrl,
 	} = sock
 
 	/** this mutex ensures that each retryRequest will wait for the previous one to finish */
@@ -75,18 +77,18 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		await sendNode(stanza)
 	}
 
-	const rejectCall = async(callId: string, callFrom: string) => {
+	const rejectCall = async(call: WACall) => {
 		const stanza: BinaryNode = ({
 			tag: 'call',
 			attrs: {
-				from: authState.creds.me!.id,
-				to: callFrom,
+				from: call.from,
+				to: call.to,
 			},
 			content: [{
 			    tag: 'reject',
 			    attrs: {
-					'call-id': callId,
-					'call-creator': callFrom,
+					'call-id': call.id,
+					'call-creator': call.creatorJid,
 					count: '0',
 			    },
 			    content: undefined,
@@ -95,12 +97,46 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		await query(stanza)
 	}
 
+	const terminateCall = async(call: WACall) => {
+		
+		const content: BinaryNode[] = [];
+		
+		const participants = call.devices?.map(( jid ) => {
+			return { tag: 'to', attrs: { jid }  };
+		})
+
+		if (participants) {
+			content.push({ tag: 'destination', attrs: {}, content: participants })
+		}
+
+		const stanza: BinaryNode = ({
+			tag: 'call',
+			attrs: {
+				from: call.from,
+				to: call.to,
+			},
+			content: [
+				{
+					tag: 'terminate',
+					attrs: {
+						reason: 'timeout',
+						'call-creator': call.creatorJid,
+						'call-id': call.id,
+					},
+					content
+				},
+				
+			],
+		})
+		return await query(stanza)
+	}
+
 	const sendRetryRequest = async(node: BinaryNode, forceIncludeKeys = false) => {
 		const msgId = node.attrs.id
 
 		let retryCount = msgRetryCache.get<number>(msgId) || 0
 		if(retryCount >= 5) {
-			logger.debug({ retryCount, msgId }, 'reached retry limit, clearing')
+			logger.error({ retryCount, msgId }, 'reached retry limit, clearing')
 			msgRetryCache.del(msgId)
 			return
 		}
@@ -262,6 +298,11 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			msg.messageStubType = WAMessageStubType.GROUP_CHANGE_RESTRICT
 			msg.messageStubParameters = [ (child.tag === 'locked') ? 'on' : 'off' ]
 			break
+		case 'description':
+			msg.messageStubType = WAMessageStubType.GROUP_CHANGE_DESCRIPTION
+			const desc = getBinaryNodeChildString(child, 'body') || ''
+			msg.messageStubParameters = [ child.attrs.id, desc ]
+			break
 		case 'invite':
 			msg.messageStubType = WAMessageStubType.GROUP_CHANGE_INVITE_LINK
 			msg.messageStubParameters = [ child.attrs.code ]
@@ -331,7 +372,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				result.messageStubType = WAMessageStubType.GROUP_CHANGE_ICON
 
 				if(setPicture) {
-					result.messageStubParameters = [ setPicture.attrs.id ]
+					const newProfile = await profilePictureUrl(from, "preview").catch(() => null)
+					result.messageStubParameters = newProfile ? [ newProfile ]: undefined
 				}
 
 				result.participant = node?.attrs.author
@@ -380,6 +422,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		msgRetryCache.set(key, newValue)
 	}
 
+
 	const sendMessagesAgain = async(
 		key: proto.IMessageKey,
 		ids: string[],
@@ -402,11 +445,19 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 		for(let i = 0; i < msgs.length;i++) {
 			const msg = msgs[i]
-			if(msg) {
+			if(msg?.message) {
 				updateSendMessageAgainCount(ids[i], participant)
 				const msgRelayOpts: MessageRelayOptions = { messageId: ids[i] }
 
-				if(sendToAll) {
+				if(msg.additionalAttributes) {
+					msgRelayOpts.additionalAttributes = msg.additionalAttributes
+				}
+
+				if(msg.sendToAll === undefined) {
+					msg.sendToAll = sendToAll
+				}
+
+				if(msg.sendToAll) {
 					msgRelayOpts.useUserDevicesCache = false
 				} else {
 					msgRelayOpts.participant = {
@@ -415,7 +466,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					}
 				}
 
-				await relayMessage(key.remoteJid!, msg, msgRelayOpts)
+				await relayMessage(key.remoteJid!, msg.message, msgRelayOpts)
 			} else {
 				logger.debug({ jid: key.remoteJid, id: ids[i] }, 'recv retry request, but message not available')
 			}
@@ -435,7 +486,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			participant: attrs.participant
 		}
 
-		if(shouldIgnoreJid(remoteJid)) {
+		if(shouldIgnoreJid(remoteJid, 'handleReceipt', node)) {
 			logger.debug({ remoteJid }, 'ignoring receipt from jid')
 			await sendMessageAck(node)
 			return
@@ -461,18 +512,39 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 						)
 					) {
 						if(isJidGroup(remoteJid)) {
+							const receipts: MessageUserReceiptUpdate[] = []
+							const participantsBatch = getBinaryNodeChildren(node, 'participants')
+							const updateKey: keyof MessageUserReceipt = status === proto.WebMessageInfo.Status.DELIVERY_ACK ? 'receiptTimestamp' : 'readTimestamp'
+							
 							if(attrs.participant) {
-								const updateKey: keyof MessageUserReceipt = status === proto.WebMessageInfo.Status.DELIVERY_ACK ? 'receiptTimestamp' : 'readTimestamp'
-								ev.emit(
-									'message-receipt.update',
-									ids.map(id => ({
-										key: { ...key, id },
-										receipt: {
-											userJid: jidNormalizedUser(attrs.participant),
-											[updateKey]: +attrs.t
-										}
-									}))
-								)
+								ids.map(id =>  receipts.push({
+									key: { ...key, id },
+									receipt: {
+										userJid: jidNormalizedUser(attrs.participant),
+										[updateKey]: +attrs.t
+									}
+								}))
+							}
+							if (participantsBatch.length > 0) {
+								participantsBatch.map((participants) => {
+									const idMessage = participants.attrs.key;
+									const users = getBinaryNodeChildren(participants, 'user')
+									users.map((user) => {
+										const userJid = user.attrs.jid;
+										receipts.push({
+											key: { ...key, id: idMessage, participant: userJid },
+											receipt: {
+												userJid: jidNormalizedUser(userJid),
+												[updateKey]: +user.attrs.t
+											}
+										})
+									})
+								})
+								
+							}
+
+							if (receipts.length > 0) {
+								ev.emit('message-receipt.update', receipts)
 							}
 						} else {
 							ev.emit(
@@ -494,6 +566,9 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 								try {
 									logger.debug({ attrs, key }, 'recv retry request')
 									await sendMessagesAgain(key, ids, retryNode!)
+									if(sendMessagesAgainDelayMs) {
+										await delay(sendMessagesAgainDelayMs)
+									}
 								} catch(error) {
 									logger.error({ key, ids, trace: error.stack }, 'error in sending message again')
 								}
@@ -512,7 +587,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 	const handleNotification = async(node: BinaryNode) => {
 		const remoteJid = node.attrs.from
-		if(shouldIgnoreJid(remoteJid)) {
+		if(shouldIgnoreJid(remoteJid, 'handleNotification', node)) {
 			logger.debug({ remoteJid, id: node.attrs.id }, 'ignored notification')
 			await sendMessageAck(node)
 			return
@@ -550,7 +625,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			signalRepository,
 			logger,
 		)
-		if(shouldIgnoreJid(msg.key.remoteJid!)) {
+		if(shouldIgnoreJid(msg.key.remoteJid!, 'handleMessage', msg)) {
 			logger.debug({ key: msg.key }, 'ignored message')
 			await sendMessageAck(node)
 			return
@@ -571,7 +646,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 										await delay(retryRequestDelayMs)
 									}
 								} else {
-									logger.debug({ node }, 'connection closed, ignoring retry req')
+									logger.error({ node }, 'connection closed, ignoring retry req')
 								}
 							}
 						)
@@ -657,8 +732,12 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		if(attrs.phash) {
 			logger.info({ attrs }, 'received phash in ack, resending message...')
 			const msg = await getMessage(key)
-			if(msg) {
-				await relayMessage(key.remoteJid!, msg, { messageId: key.id!, useUserDevicesCache: false })
+			if(msg?.message) {
+				await relayMessage(key.remoteJid!, msg.message, {
+					messageId: key.id!,
+					useUserDevicesCache: false,
+					additionalAttributes: msg.additionalAttributes,
+				})
 			} else {
 				logger.warn({ attrs }, 'could not send message again, as it was not found')
 			}
@@ -679,6 +758,15 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 								attrs.error
 							]
 						}
+					}
+				]
+			)
+		} else {
+			ev.emit(
+				'messages.update',[
+					{
+						key,
+						update: { status: WAMessageStatus.SERVER_ACK }
 					}
 				]
 			)
@@ -761,6 +849,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		...sock,
 		sendMessageAck,
 		sendRetryRequest,
-		rejectCall
+		rejectCall,
+		terminateCall,
 	}
 }

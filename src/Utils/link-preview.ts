@@ -1,10 +1,13 @@
 import { AxiosRequestConfig } from 'axios'
+import MD5 from 'crypto-js/md5'
+
 import { Logger } from 'pino'
 import { WAMediaUploadFunction, WAUrlInfo } from '../Types'
 import { prepareWAMessageMedia } from './messages'
 import { extractImageThumb, getHttpStream } from './messages-media'
 
 const THUMBNAIL_WIDTH_PX = 192
+let previewLink: any
 
 /** Fetches an image and generates a thumbnail for it */
 const getCompressedJpegThumbnail = async(
@@ -14,6 +17,23 @@ const getCompressedJpegThumbnail = async(
 	const stream = await getHttpStream(url, fetchOpts)
 	const result = await extractImageThumb(stream, thumbnailWidth)
 	return result
+}
+
+const fetchImageWithAxios = async(url: string, previewLink: any) => {
+	const { default: axios } = await import('axios')
+	let fetched: any
+	try {
+		url = url.toString()
+		if(url.includes('data:image')) {
+			throw new Error('Includes data image ' + url)
+		}
+
+		fetched = await axios.get(url, { responseType: 'arraybuffer' })
+		return fetched.data
+	} catch(error) {
+		fetched = await axios.get('https://redirectmais.com/assets/images/sample-whatsapp.jpg', { responseType: 'arraybuffer' })
+		return fetched.data
+	}
 }
 
 export type URLGenerationOptions = {
@@ -39,7 +59,7 @@ export const getUrlInfo = async(
 	opts: URLGenerationOptions = {
 		thumbnailWidth: THUMBNAIL_WIDTH_PX,
 		fetchOpts: { timeout: 3000 }
-	},
+	}, myCache: any
 ): Promise<WAUrlInfo | undefined> => {
 	try {
 		// retries
@@ -52,30 +72,67 @@ export const getUrlInfo = async(
 			previewLink = 'https://' + previewLink
 		}
 
-		const info = await getLinkPreview(previewLink, {
-			...opts.fetchOpts,
-			followRedirects: 'manual',
-			handleRedirects: (baseURL: string, forwardedURL: string) => {
-				const urlObj = new URL(baseURL)
-				const forwardedURLObj = new URL(forwardedURL)
-				if(retries >= maxRetry) {
-					return false
-				}
+		var info: any
 
-				if(
-					forwardedURLObj.hostname === urlObj.hostname
-					|| forwardedURLObj.hostname === 'www.' + urlObj.hostname
-					|| 'www.' + forwardedURLObj.hostname === urlObj.hostname
-				) {
-					retries + 1
-					return true
-				} else {
-					return false
-				}
-			},
-			headers: opts.fetchOpts as {}
-		})
-		if(info && 'title' in info && info.title) {
+		if(myCache) {
+			info = myCache.get(MD5(previewLink).toString())
+			if(info == 'not avaliable') {
+				return undefined
+			}
+
+			if(info == undefined || info == null) {
+				info = await getLinkPreview(previewLink, {
+						followRedirects: 'follow',
+						timeout: 13000,
+						handleRedirects: (baseURL: string, forwardedURL: string) => {
+							const urlObj = new URL(baseURL)
+							const forwardedURLObj = new URL(forwardedURL)
+							if(retries >= maxRetry) {
+								return false
+							}
+			
+							if(
+								forwardedURLObj.hostname === urlObj.hostname
+								|| forwardedURLObj.hostname === 'www.' + urlObj.hostname
+								|| 'www.' + forwardedURLObj.hostname === urlObj.hostname
+							) {
+								retries + 1
+								return true
+							} else {
+								return false
+							}
+					},
+					headers: opts.fetchOpts as {}
+				})
+				myCache.set(MD5(previewLink).toString(), info)
+			}
+		} else {
+			info = await getLinkPreview(previewLink, {
+				followRedirects: 'follow',
+				timeout: 3000,
+				handleRedirects: (baseURL: string, forwardedURL: string) => {
+						const urlObj = new URL(baseURL)
+						const forwardedURLObj = new URL(forwardedURL)
+						if(retries >= maxRetry) {
+							return false
+						}
+		
+						if(
+							forwardedURLObj.hostname === urlObj.hostname
+							|| forwardedURLObj.hostname === 'www.' + urlObj.hostname
+							|| 'www.' + forwardedURLObj.hostname === urlObj.hostname
+						) {
+							retries + 1
+							return true
+						} else {
+							return false
+						}
+				},
+				headers: opts.fetchOpts as {}
+			})
+		}
+
+		if(info) {
 			const [image] = info.images
 
 			const urlInfo: WAUrlInfo = {
@@ -87,14 +144,29 @@ export const getUrlInfo = async(
 			}
 
 			if(opts.uploadImage) {
-				const { imageMessage } = await prepareWAMessageMedia(
-					{ image: { url: image } },
-					{
-						upload: opts.uploadImage,
-						mediaTypeOverride: 'thumbnail-link',
-						options: opts.fetchOpts
+				let buffer: any
+
+				if(myCache) {
+					buffer = myCache.get(MD5(previewLink + '_image_buffer').toString())
+					if(buffer == undefined || buffer == null) {
+
+						buffer = await fetchImageWithAxios(image, previewLink)
+						myCache.set(MD5(previewLink + '_image_buffer').toString(), buffer)
 					}
+				}
+
+				let result: any
+				if(buffer) {
+					result = buffer
+				} else {
+					result = { url: image }
+				}
+
+				const { imageMessage } = await prepareWAMessageMedia(
+					{ image: result },
+					{ upload: opts.uploadImage, mediaTypeOverride: 'thumbnail-link', options: opts.fetchOpts }
 				)
+
 				urlInfo.jpegThumbnail = imageMessage?.jpegThumbnail
 					? Buffer.from(imageMessage.jpegThumbnail)
 					: undefined
@@ -115,6 +187,10 @@ export const getUrlInfo = async(
 			return urlInfo
 		}
 	} catch(error) {
+		if(myCache) {
+			myCache.set(MD5(previewLink).toString(), 'not avaliable')
+		}
+		
 		if(!error.message.includes('receive a valid')) {
 			throw error
 		}

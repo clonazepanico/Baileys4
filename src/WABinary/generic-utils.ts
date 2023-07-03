@@ -26,6 +26,15 @@ export const getBinaryNodeChild = (node: BinaryNode | undefined, childTag: strin
 	}
 }
 
+export const removeBinaryNodeChild = (node: BinaryNode | undefined, childTag: string) => {
+	if(Array.isArray(node?.content)) {
+		const index = node?.content.findIndex(item => item.tag === childTag) || -1
+		if(index > -1) {
+			node?.content.splice(index, 1)
+		}
+	}
+}
+
 export const getBinaryNodeChildBuffer = (node: BinaryNode | undefined, childTag: string) => {
 	const child = getBinaryNodeChild(node, childTag)?.content
 	if(Buffer.isBuffer(child) || child instanceof Uint8Array) {
