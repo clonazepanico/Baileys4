@@ -16,6 +16,8 @@ export type ConnectionState = {
 	qr?: string
 	/** has the device received all pending notifications while it was offline */
 	receivedPendingNotifications?: boolean
+	/** offline_notifications  */
+	offline_notifications?: number;
 	/** legacy connection options */
 	legacy?: {
 		phoneConnected: boolean
@@ -26,4 +28,10 @@ export type ConnectionState = {
 	 * If this is false, the primary phone and other devices will receive notifs
 	 * */
 	isOnline?: boolean
+}
+
+export type ConfigurationState = {
+	props?: { [key: string]: string }
+	props_version?: string
+	privacy?: { [key: string]: string }
 }

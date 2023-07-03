@@ -22,6 +22,12 @@ export type CacheStore = {
     flushAll(): void
 }
 
+export interface RetryMessage {
+    message?: proto.IMessage;
+    additionalAttributes?: { [_: string]: string };
+    sendToAll?: boolean;
+}
+
 export type SocketConfig = {
     /** the WS url to connect to WA */
     waWebSocketUrl: string | URL
@@ -29,6 +35,8 @@ export type SocketConfig = {
     connectTimeoutMs: number
     /** Default timeout for queries, undefined for no timeout */
     defaultQueryTimeoutMs: number | undefined
+    /** Fails the connection if the ping-pong response times out in this interval */
+    connectionLostTimeoutMs: number | undefined
     /** ping-pong interval for WS connection */
     keepAliveIntervalMs: number
 	/** should baileys use the mobile api instead of the multi device api */
@@ -89,7 +97,7 @@ export type SocketConfig = {
      * no event for that jid will be triggered.
      * Messages from that jid will also not be decrypted
      * */
-    shouldIgnoreJid: (jid: string) => boolean | undefined
+    shouldIgnoreJid: (jid: string, context?: string, data?: any) => boolean | undefined
 
     /**
      * Optionally patch the message before sending out
@@ -112,7 +120,15 @@ export type SocketConfig = {
      * implement this so that messages failed to send
      * (solves the "this message can take a while" issue) can be retried
      * */
-    getMessage: (key: proto.IMessageKey) => Promise<proto.IMessage | undefined>
+    getMessage: (key: proto.IMessageKey) => Promise<RetryMessage | undefined>
 
     makeSignalRepository: (auth: SignalAuthState) => SignalRepository
+    
+
+    /** time to wait between send messages again requests */
+    sendMessagesAgainDelayMs: number
+
+    /** enable schedule nodes */
+    enableScheduleNodes: boolean
+
 }

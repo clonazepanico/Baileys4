@@ -276,6 +276,7 @@ const processMessage = async(
 		}])
 	} else if(message.messageStubType) {
 		const jid = message.key!.remoteJid!
+		const key = message.key;
 		//let actor = whatsappID (message.participant)
 		let participants: string[]
 		const emitParticipantsUpdate = (action: ParticipantAction) => (
@@ -333,16 +334,27 @@ const processMessage = async(
 			const code = message.messageStubParameters?.[0]
 			emitGroupUpdate({ inviteCode: code })
 			break
+		case WAMessageStubType.GROUP_CHANGE_DESCRIPTION:
+			if(message.messageStubParameters?.length === 2) {
+				const [descId, desc] = message.messageStubParameters
+				emitGroupUpdate({ descId, desc })
+			}
+
+			break
+		case WAMessageStubType.GROUP_CHANGE_ICON:
+			const iconImg = message.messageStubParameters?.[0]
+			emitGroupUpdate({ iconImg })
+			break
 		}
 	} else if(content?.pollUpdateMessage) {
 		const creationMsgKey = content.pollUpdateMessage.pollCreationMessageKey!
 		// we need to fetch the poll creation message to get the poll enc key
 		const pollMsg = await getMessage(creationMsgKey)
-		if(pollMsg) {
+		if(pollMsg?.message) {
 			const meIdNormalised = jidNormalizedUser(meId)
 			const pollCreatorJid = getKeyAuthor(creationMsgKey, meIdNormalised)
 			const voterJid = getKeyAuthor(message.key!, meIdNormalised)
-			const pollEncKey = pollMsg.messageContextInfo?.messageSecret!
+			const pollEncKey = pollMsg.message.messageContextInfo?.messageSecret!
 
 			try {
 				const voteMsg = decryptPollVote(

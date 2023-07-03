@@ -170,7 +170,7 @@ export async function promiseTimeout<T>(ms: number | undefined, promise: (resolv
 }
 
 // generate a random ID to attach to a message
-export const generateMessageID = () => 'BAE5' + randomBytes(6).toString('hex').toUpperCase()
+export const generateMessageID = () => '3EB0' + randomBytes(8).toString('hex').toUpperCase()
 
 export function bindWaitForEvent<T extends keyof BaileysEventMap>(ev: BaileysEventEmitter, event: T) {
 	return async(check: (u: BaileysEventMap[T]) => boolean | undefined, timeoutMs?: number) => {
@@ -226,7 +226,7 @@ export const printQRIfNecessaryListener = (ev: BaileysEventEmitter, logger: Logg
  * Use to ensure your WA connection is always on the latest version
  */
 export const fetchLatestBaileysVersion = async(options: AxiosRequestConfig<any> = { }) => {
-	const URL = 'https://raw.githubusercontent.com/WhiskeySockets/Baileys/master/src/Defaults/baileys-version.json'
+	const URL = 'https://raw.githubusercontent.com/LeonardoBein/Baileys/v5.0.0/src/Defaults/baileys-version.json'
 	try {
 		const result = await axios.get<{ version: WAVersion }>(
 			URL,

@@ -12,3 +12,13 @@ export type WACallEvent = {
 	offline: boolean
 	latencyMs?: number
 }
+
+export type WACall = {
+	id: string
+	to: string
+	from: string
+	creatorJid: string
+	devices?: string[]
+	isVideo: boolean
+
+}

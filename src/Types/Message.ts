@@ -4,6 +4,7 @@ import type { Readable } from 'stream'
 import type { URL } from 'url'
 import { proto } from '../../WAProto'
 import { MEDIA_HKDF_KEY_MAPPING } from '../Defaults'
+import { BinaryNode, JidWithDevice } from '../WABinary'
 import type { GroupMetadata } from './GroupMetadata'
 import { CacheStore } from './Socket'
 
@@ -189,6 +190,8 @@ type MinimalRelayOptions = {
     messageId?: string
     /** cached group metadata, use to prevent redundant requests to WA & speed up msg sending */
     cachedGroupMetadata?: (jid: string) => Promise<GroupMetadataParticipants | undefined>
+    /** additional binary node */
+    additionalBinaryNode?: BinaryNode
 }
 
 export type MessageRelayOptions = MinimalRelayOptions & {
@@ -198,6 +201,10 @@ export type MessageRelayOptions = MinimalRelayOptions & {
     additionalAttributes?: { [_: string]: string }
     /** should we use the devices cache, or fetch afresh from the server; default assumed to be "true" */
     useUserDevicesCache?: boolean
+        /* Dont use to send any message, only to normalize group sessions */
+        useToOnlyNormalizeGroupSessions?: boolean
+
+        force_send?: boolean
 }
 
 export type MiscMessageGenerationOptions = MinimalRelayOptions & {
@@ -209,6 +216,14 @@ export type MiscMessageGenerationOptions = MinimalRelayOptions & {
     ephemeralExpiration?: number | string
     /** timeout for media upload to WA server */
     mediaUploadTimeoutMs?: number
+    /** building waveform in audio file */
+    mediaAudioWaveform?: boolean
+
+    myCache?: any
+
+    custom_message_handler?: any
+
+    force_send?: boolean
 }
 export type MessageGenerationOptionsFromContent = MiscMessageGenerationOptions & {
 	userJid: string
@@ -226,9 +241,14 @@ export type MediaGenerationOptions = {
     mediaUploadTimeoutMs?: number
 
     options?: AxiosRequestConfig
+    mediaAudioWaveform?: boolean
+
+    /* Custom Cache Option */
+    myCache?: any
 }
 export type MessageContentGenerationOptions = MediaGenerationOptions & {
 	getUrlInfo?: (text: string) => Promise<WAUrlInfo | undefined>
+    myCache?: any
 }
 export type MessageGenerationOptions = MessageContentGenerationOptions & MessageGenerationOptionsFromContent
 
@@ -246,6 +266,8 @@ export type WAMessageUpdate = { update: Partial<WAMessage>, key: proto.IMessageK
 export type WAMessageCursor = { before: WAMessageKey | undefined } | { after: WAMessageKey | undefined }
 
 export type MessageUserReceiptUpdate = { key: proto.IMessageKey, receipt: MessageUserReceipt }
+
+export type MessageUserPendingUpdate = { key: proto.IMessageKey, devices: JidWithDevice[] }
 
 export type MediaDecryptionKeyInfo = {
     iv: Buffer
