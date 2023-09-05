@@ -120,7 +120,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		await sendNode(node)
 	}
 
-	const sendCallOffer = async(jidTo: string, isVideo: boolean = false) => {
+	const sendCallOffer = async(jidTo: string, isVideo = false) => {
 		const meId = authState.creds.me!.id
 
 		if(isJidGroup(jidTo)) {
@@ -206,7 +206,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				const devicesNode = getBinaryNodeChildren(userNode, 'device')
 
 				call = {
-					isVideo, 
+					isVideo,
 					id: callId,
 					devices: devicesNode.map((d) => d.attrs.jid),
 					creatorJid: meId,
@@ -401,10 +401,10 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		return { nodes, shouldIncludeDeviceIdentity }
 	}
 
-	const getAllDeviceGroup = async(jid: string, useCache: boolean = false) => {
+	const getAllDeviceGroup = async(jid: string, useCache = false) => {
 		const devices: JidWithDevice[] = []
 
-		let groupData = await groupMetadata(jid)
+		const groupData = await groupMetadata(jid)
 
 		const participantsList = groupData.participants.map(p => p.id)
 		const additionalDevices = await getUSyncDevices(participantsList, useCache, false)
@@ -415,20 +415,23 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 	const relayMessage = async(
 		jid: string,
 		message: proto.IMessage,
-		{ messageId: msgId, participant, additionalAttributes, useUserDevicesCache, cachedGroupMetadata, additionalBinaryNode, useToOnlyNormalizeGroupSessions = false, force_send = false }: MessageRelayOptions
+		{ messageId: msgId, participant, additionalAttributes, useUserDevicesCache, cachedGroupMetadata, statusJidList, useToOnlyNormalizeGroupSessions = false, force_send = false }: MessageRelayOptions
 	) => {
 		const meId = authState.creds.me!.id
 
 		let shouldIncludeDeviceIdentity = false
-		let nodeAck: BinaryNode = { tag: 'ack', attrs: { } };
+		let nodeAck: BinaryNode = { tag: 'ack', attrs: { } }
 
 		const { user, server } = jidDecode(jid)!
+		const statusJid = 'status@broadcast'
 		const isGroup = server === 'g.us'
+		const isStatus = jid === statusJid
+
 		msgId = msgId || generateMessageID()
 		useUserDevicesCache = useUserDevicesCache !== false
 
 		const participants: BinaryNode[] = []
-		const destinationJid = jidEncode(user, isGroup ? 'g.us' : 's.whatsapp.net')
+		const destinationJid = (!isStatus) ? jidEncode(user, isGroup ? 'g.us' : 's.whatsapp.net') : statusJid
 		const binaryNodeContent: BinaryNode[] = []
 		const devices: JidWithDevice[] = []
 
@@ -443,7 +446,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			// when the retry request is not for a group
 			// only send to the specific device that asked for a retry
 			// otherwise the message is sent out to every device that should be a recipient
-			if(!isGroup) {
+			if(!isGroup && !isStatus) {
 				additionalAttributes = { ...additionalAttributes, 'device_fanout': 'false' }
 			}
 
@@ -453,15 +456,23 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 		await authState.keys.transaction(
 			async() => {
-				if(isGroup) {
+				const mediaType = getMediaType(message)
+				if(isGroup || isStatus) {
 					const [groupData, senderKeyMap] = await Promise.all([
 						(async() => {
-							let groupData = await groupMetadata(jid)
+							let groupData = cachedGroupMetadata ? await cachedGroupMetadata(jid) : undefined
+							if(groupData) {
+								logger.trace({ jid, participants: groupData.participants.length }, 'using cached group metadata')
+							}
+
+							if(!groupData && !isStatus) {
+								groupData = await groupMetadata(jid)
+							}
 
 							return groupData
 						})(),
 						(async() => {
-							if(!participant) {
+							if(!participant && !isStatus) {
 								const result = await authState.keys.get('sender-key-memory', [jid])
 								return result[jid] || { }
 							}
@@ -471,7 +482,11 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					])
 
 					if(!participant) {
-						const participantsList = groupData.participants.map(p => p.id)
+						const participantsList = (groupData && !isStatus) ? groupData.participants.map(p => p.id) : []
+						if(isStatus && statusJidList) {
+							participantsList.push(...statusJidList)
+						}
+
 						const additionalDevices = await getUSyncDevices(participantsList, !!useUserDevicesCache, false)
 						devices.push(...additionalDevices)
 					}
@@ -519,18 +534,18 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					}
 
 
-					if (Object.keys(senderKeyMap).length && force_send == true) {
-							const senderKeyMapKeys = Object.keys(senderKeyMap);
-							const senderKeyMsg = {
-									senderKeyDistributionMessage: {
-											axolotlSenderKeyDistributionMessage: senderKeyDistributionMessage,
-											groupId: destinationJid
-									}
-							};
-							await assertSessions(senderKeyMapKeys, false);
-							const result = await createParticipantNodes(senderKeyMapKeys, senderKeyMsg);
-							shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity;
-							participants.push(...result.nodes);
+					if(Object.keys(senderKeyMap).length && force_send == true) {
+						const senderKeyMapKeys = Object.keys(senderKeyMap)
+						const senderKeyMsg = {
+							senderKeyDistributionMessage: {
+								axolotlSenderKeyDistributionMessage: senderKeyDistributionMessage,
+								groupId: destinationJid
+							}
+						}
+						await assertSessions(senderKeyMapKeys, false)
+						const result = await createParticipantNodes(senderKeyMapKeys, senderKeyMsg)
+						shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
+						participants.push(...result.nodes)
 					}
 
 					binaryNodeContent.push({
@@ -540,17 +555,20 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					})
 
 					logger.debug({ senderKeyMap }, 'set sender-key-memory')
-					let res = await authState.keys.set({ 'sender-key-memory': { [jid]: senderKeyMap } })
+					const res = await authState.keys.set({ 'sender-key-memory': { [jid]: senderKeyMap } })
 
-					if (useToOnlyNormalizeGroupSessions == true) {
+					if(useToOnlyNormalizeGroupSessions == true) {
 						return res
 					}
 				} else {
-					const { user: meUser } = jidDecode(meId)!
+					const { user: meUser, device: meDevice } = jidDecode(meId)!
 
 					if(!participant) {
 						devices.push({ user })
-						devices.push({ user: meUser })
+						// do not send message to self if the device is 0 (mobile)
+						if(meDevice !== undefined && meDevice !== 0) {
+							devices.push({ user: meUser })
+						}
 
 						const additionalDevices = await getUSyncDevices([ meId, jid ], !!useUserDevicesCache, true)
 						devices.push(...additionalDevices)
@@ -638,18 +656,19 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 				try {
 					nodeAck = await query(stanza)
-				} catch (e) {					
-					if ((e  as Boom)?.output?.statusCode != DisconnectReason.timedOut) {
-						throw e;
+				} catch(e) {
+					if((e as Boom)?.output?.statusCode != DisconnectReason.timedOut) {
+						throw e
 					}
+
 					nodeAck.tag = 'error-timeout'
 				}
 
-	
+
 			}
 		)
 
-		return {msgId, nodeAck}
+		return { msgId, nodeAck }
 	}
 
 	const getPrivacyTokens = async(jids: string[]) => {
@@ -726,7 +745,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 									}
 
 									content.directPath = media.directPath
-									content.url = getUrlFromDirectPath(content.directPath!)
+									content.url = getUrlFromDirectPath(content.directPath)
 
 									logger.debug({ directPath: media.directPath, key: result.key }, 'media update successful')
 								} catch(err) {
@@ -806,19 +825,17 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					}
 				}
 
-				if (options?.custom_message_handler) {
-					options?.custom_message_handler.addMessage(fullMsg);
+				if(options?.custom_message_handler) {
+					options?.custom_message_handler.addMessage(fullMsg)
 				}
 
-				let force_send = options?.force_send ? true : false;
+				let forceSend = false
 
-				const { nodeAck } = await relayMessage(jid, fullMsg.message!, { messageId: fullMsg.key.id!, cachedGroupMetadata: options.cachedGroupMetadata, additionalAttributes, additionalBinaryNode: options.additionalBinaryNode, force_send: force_send})
-				
-				if (nodeAck.tag == 'ack' && nodeAck.attrs.class == 'message') {
-					if (nodeAck.attrs.id == fullMsg.key.id) {
-						fullMsg.status = nodeAck.attrs.error || nodeAck.attrs.phash ? WAMessageStatus.ERROR : WAMessageStatus.SERVER_ACK
-					}
+				if(options?.force_send) {
+					forceSend = true
 				}
+
+				await relayMessage(jid, fullMsg.message!, { messageId: fullMsg.key.id!, cachedGroupMetadata: options.cachedGroupMetadata, additionalAttributes, statusJidList: options.statusJidList, force_send: forceSend })
 				if(config.emitOwnEvents) {
 					process.nextTick(() => {
 						processingMutex.mutex(() => (

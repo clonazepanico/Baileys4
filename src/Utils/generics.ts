@@ -43,7 +43,7 @@ export const BufferJSON = {
 
 export const getKeyAuthor = (
 	key: proto.IMessageKey | undefined | null,
-	meId: string = 'me'
+	meId = 'me'
 ) => (
 	(key?.fromMe ? meId : key?.participant || key?.remoteJid) || ''
 )
@@ -100,7 +100,7 @@ export const unixTimestampSeconds = (date: Date = new Date()) => Math.floor(date
 
 export type DebouncedTimeout = ReturnType<typeof debouncedTimeout>
 
-export const debouncedTimeout = (intervalMs: number = 1000, task?: () => void) => {
+export const debouncedTimeout = (intervalMs = 1000, task?: () => void) => {
 	let timeout: NodeJS.Timeout | undefined
 	return {
 		start: (newIntervalMs?: number, newTask?: () => void) => {
@@ -213,6 +213,7 @@ export const printQRIfNecessaryListener = (ev: BaileysEventEmitter, logger: Logg
 	ev.on('connection.update', async({ qr }) => {
 		if(qr) {
 			const QR = await import('qrcode-terminal')
+				.then(m => m.default || m)
 				.catch(() => {
 					logger.error('QR code terminal not added as dependency')
 				})
@@ -226,7 +227,7 @@ export const printQRIfNecessaryListener = (ev: BaileysEventEmitter, logger: Logg
  * Use to ensure your WA connection is always on the latest version
  */
 export const fetchLatestBaileysVersion = async(options: AxiosRequestConfig<any> = { }) => {
-	const URL = 'https://raw.githubusercontent.com/LeonardoBein/Baileys/v5.0.0/src/Defaults/baileys-version.json'
+	const URL = 'https://raw.githubusercontent.com/WhiskeySockets/Baileys/master/src/Defaults/baileys-version.json'
 	try {
 		const result = await axios.get<{ version: WAVersion }>(
 			URL,
@@ -378,7 +379,7 @@ export const isWABusinessPlatform = (platform: string) => {
 	return platform === 'smbi' || platform === 'smba'
 }
 
-export function trimUndefineds(obj: any) {
+export function trimUndefined(obj: any) {
 	for(const key in obj) {
 		if(typeof obj[key] === 'undefined') {
 			delete obj[key]
@@ -386,4 +387,28 @@ export function trimUndefineds(obj: any) {
 	}
 
 	return obj
+}
+
+const CROCKFORD_CHARACTERS = '123456789ABCDEFGHJKLMNPQRSTVWXYZ'
+
+export function bytesToCrockford(buffer: Buffer): string {
+	let value = 0
+	let bitCount = 0
+	const crockford: string[] = []
+
+	for(let i = 0; i < buffer.length; i++) {
+		value = (value << 8) | (buffer[i] & 0xff)
+		bitCount += 8
+
+		while(bitCount >= 5) {
+			crockford.push(CROCKFORD_CHARACTERS.charAt((value >>> (bitCount - 5)) & 31))
+			bitCount -= 5
+		}
+	}
+
+	if(bitCount > 0) {
+		crockford.push(CROCKFORD_CHARACTERS.charAt((value << (5 - bitCount)) & 31))
+	}
+
+	return crockford.join('')
 }
