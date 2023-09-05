@@ -40,10 +40,7 @@ type MediaUploadData = {
 	width?: number
 	height?: number
 	waveform?: Uint8Array
-<<<<<<< HEAD
-=======
 	backgroundArgb?: number
->>>>>>> cd8542ff7c072b5e58d2d3de2396983a5304e5e1
 }
 
 const MIMETYPE_MAP: { [T in MediaType]?: string } = {
@@ -129,7 +126,7 @@ export const prepareWAMessageMedia = async(
 			!!uploadData.media.url &&
 			!!options.mediaCache && (
 	// generate the key
-		mediaType + ':' + uploadData.media.url!.toString()
+		mediaType + ':' + uploadData.media.url.toString()
 	)
 
 	if(mediaType === 'document' && !uploadData.fileName) {
@@ -202,7 +199,8 @@ export const prepareWAMessageMedia = async(
 						uploadData.height = originalImageDimensions.height
 						logger?.debug('set dimensions')
 					}
-					if (!uploadData.seconds && originalImageDimensions) {
+
+					if(!uploadData.seconds && originalImageDimensions) {
 						uploadData.seconds = Number(originalImageDimensions.duration || null)
 					}
 
@@ -211,9 +209,10 @@ export const prepareWAMessageMedia = async(
 
 				if(requiresDurationComputation) {
 					uploadData.seconds = await getAudioDuration(bodyPath!)
-					if (options.mediaAudioWaveform) {
+					if(options.mediaAudioWaveform) {
 						uploadData.waveform = await getAudioWaveform(bodyPath!)
 					}
+
 					logger?.debug({ uploadData }, 'computed audio duration')
 				}
 
@@ -337,25 +336,25 @@ export const generateWAMessageContent = async(
 			urlInfo = await generateLinkPreviewIfRequired(message.text, options.getUrlInfo, options.logger)
 		}
 
-		let custom_url: any;
+		let custom_url: any
 
 		try {
-				custom_url = extractUrlFromText(message.text);
+			custom_url = extractUrlFromText(message.text)
 
-				if (custom_url == null || custom_url == undefined) {
-					function linkify(text) {
-							var expression = /(https?:\/\/(?:www\.|(?!www))[^\s\.]+\.[^\s]{2,}|www\.[^\s]+\.[^\s]{2,})/gi;
-							var matches = text.match(expression);
-							if (matches != null) {
-									return matches[0]
-							} else {
-									return undefined
-							}
+			if(custom_url == null || custom_url == undefined) {
+				function linkify(text) {
+					var expression = /(https?:\/\/(?:www\.|(?!www))[^\s\.]+\.[^\s]{2,}|www\.[^\s]+\.[^\s]{2,})/gi
+					var matches = text.match(expression)
+					if(matches != null) {
+						return matches[0]
+					} else {
+						return undefined
 					}
-
-					custom_url = linkify(message.text);
 				}
-		} catch (error) {
+
+				custom_url = linkify(message.text)
+			}
+		} catch(error) {
 
 		}
 
@@ -363,11 +362,11 @@ export const generateWAMessageContent = async(
 			extContent.canonicalUrl = urlInfo['canonical-url']
 			extContent.matchedText = urlInfo['matched-text']
 			extContent.jpegThumbnail = urlInfo.jpegThumbnail
-			extContent.description = urlInfo.description || 'Clique aqui para ser redirecionado';
-			extContent.title = urlInfo.title || 'Clique aqui para ser redirecionado';
-			extContent.previewType = 0;
+			extContent.description = urlInfo.description || 'Clique aqui para ser redirecionado'
+			extContent.title = urlInfo.title || 'Clique aqui para ser redirecionado'
+			extContent.previewType = 0
 
-			const img = urlInfo.highQualityThumbnail;
+			const img = urlInfo.highQualityThumbnail
 			if(img) {
 				extContent.thumbnailDirectPath = img.directPath
 				extContent.mediaKey = img.mediaKey
@@ -379,19 +378,20 @@ export const generateWAMessageContent = async(
 			}
 		}
 
-		if (custom_url != undefined && urlInfo == undefined) {
-				extContent.canonicalUrl = custom_url;
-				extContent.matchedText = custom_url;
-				extContent.description = 'Clique aqui para ser redirecionado';
-				extContent.title = 'Clique aqui para ser redirecionado';
-				extContent.previewType = 0;
+		if(custom_url != undefined && urlInfo == undefined) {
+			extContent.canonicalUrl = custom_url
+			extContent.matchedText = custom_url
+			extContent.description = 'Clique aqui para ser redirecionado'
+			extContent.title = 'Clique aqui para ser redirecionado'
+			extContent.previewType = 0
 		}
 
-	
+
 		const externalAdReply = message.contextInfo?.externalAdReply
-		if (externalAdReply) {
+		if(externalAdReply) {
 			extContent.contextInfo = { externalAdReply }
 		}
+
 		/*
 		if (urlInfo || externalAdReply) {
 			m.extendedTextMessage = extContent
@@ -510,7 +510,7 @@ export const generateWAMessageContent = async(
 
 	if('buttons' in message && !!message.buttons) {
 		const buttonsMessage: proto.Message.IButtonsMessage = {
-			buttons: message.buttons!.map(b => ({ ...b, type: proto.Message.ButtonsMessage.Button.Type.RESPONSE }))
+			buttons: message.buttons.map(b => ({ ...b, type: proto.Message.ButtonsMessage.Button.Type.RESPONSE }))
 		}
 		if('text' in message) {
 			buttonsMessage.contentText = message.text
@@ -770,7 +770,7 @@ export const extractMessageContent = (content: WAMessageContent | undefined | nu
 	content = normalizeMessageContent(content)
 
 	if(content?.buttonsMessage) {
-	  return extractFromTemplateMessage(content.buttonsMessage!)
+	  return extractFromTemplateMessage(content.buttonsMessage)
 	}
 
 	if(content?.templateMessage?.hydratedFourRowTemplate) {

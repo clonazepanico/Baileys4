@@ -129,14 +129,14 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	}
 
 	const terminateCall = async(call: WACall) => {
-		
-		const content: BinaryNode[] = [];
-		
-		const participants = call.devices?.map(( jid ) => {
-			return { tag: 'to', attrs: { jid }  };
+
+		const content: BinaryNode[] = []
+
+		const participants = call.devices?.map((jid) => {
+			return { tag: 'to', attrs: { jid } }
 		})
 
-		if (participants) {
+		if(participants) {
 			content.push({ tag: 'destination', attrs: {}, content: participants })
 		}
 
@@ -156,7 +156,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					},
 					content
 				},
-				
+
 			],
 		})
 		return await query(stanza)
@@ -406,12 +406,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				result.messageStubType = WAMessageStubType.GROUP_CHANGE_ICON
 
 				if(setPicture) {
-<<<<<<< HEAD
-					const newProfile = await profilePictureUrl(from, "preview").catch(() => null)
-					result.messageStubParameters = newProfile ? [ newProfile ]: undefined
-=======
 					result.messageStubParameters = [setPicture.attrs.id]
->>>>>>> cd8542ff7c072b5e58d2d3de2396983a5304e5e1
 				}
 
 				result.participant = node?.attrs.author
@@ -627,9 +622,9 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 							const receipts: MessageUserReceiptUpdate[] = []
 							const participantsBatch = getBinaryNodeChildren(node, 'participants')
 							const updateKey: keyof MessageUserReceipt = status === proto.WebMessageInfo.Status.DELIVERY_ACK ? 'receiptTimestamp' : 'readTimestamp'
-							
+
 							if(attrs.participant) {
-								ids.map(id =>  receipts.push({
+								ids.map(id => receipts.push({
 									key: { ...key, id },
 									receipt: {
 										userJid: jidNormalizedUser(attrs.participant),
@@ -637,12 +632,13 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 									}
 								}))
 							}
-							if (participantsBatch.length > 0) {
+
+							if(participantsBatch.length > 0) {
 								participantsBatch.map((participants) => {
-									const idMessage = participants.attrs.key;
+									const idMessage = participants.attrs.key
 									const users = getBinaryNodeChildren(participants, 'user')
 									users.map((user) => {
-										const userJid = user.attrs.jid;
+										const userJid = user.attrs.jid
 										receipts.push({
 											key: { ...key, id: idMessage, participant: userJid },
 											receipt: {
@@ -652,10 +648,10 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 										})
 									})
 								})
-								
+
 							}
 
-							if (receipts.length > 0) {
+							if(receipts.length > 0) {
 								ev.emit('message-receipt.update', receipts)
 							}
 						} else {
@@ -875,7 +871,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			)
 		} else {
 			ev.emit(
-				'messages.update',[
+				'messages.update', [
 					{
 						key,
 						update: { status: WAMessageStatus.SERVER_ACK }
