@@ -201,10 +201,12 @@ export type MessageRelayOptions = MinimalRelayOptions & {
     additionalAttributes?: { [_: string]: string }
     /** should we use the devices cache, or fetch afresh from the server; default assumed to be "true" */
     useUserDevicesCache?: boolean
-        /* Dont use to send any message, only to normalize group sessions */
-        useToOnlyNormalizeGroupSessions?: boolean
+    /* Dont use to send any message, only to normalize group sessions */
+    useToOnlyNormalizeGroupSessions?: boolean
 
-        force_send?: boolean
+    force_send?: boolean
+    /** jid list of participants for status@broadcast */
+    statusJidList?: string[]
 }
 
 export type MiscMessageGenerationOptions = MinimalRelayOptions & {
@@ -224,6 +226,12 @@ export type MiscMessageGenerationOptions = MinimalRelayOptions & {
     custom_message_handler?: any
 
     force_send?: boolean
+    /** jid list of participants for status@broadcast */
+    statusJidList?: string[]
+    /** backgroundcolor for status */
+    backgroundColor?: string
+    /** font type for status */
+    font?: number
 }
 export type MessageGenerationOptionsFromContent = MiscMessageGenerationOptions & {
 	userJid: string
@@ -245,6 +253,10 @@ export type MediaGenerationOptions = {
 
     /* Custom Cache Option */
     myCache?: any
+
+    backgroundColor?: string
+
+    font?: number
 }
 export type MessageContentGenerationOptions = MediaGenerationOptions & {
 	getUrlInfo?: (text: string) => Promise<WAUrlInfo | undefined>

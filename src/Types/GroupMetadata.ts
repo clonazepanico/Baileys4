@@ -27,11 +27,8 @@ export interface GroupMetadata {
     participants: GroupParticipant[]
     ephemeralDuration?: number
     inviteCode?: string
-    iconImg?: string
-
-    community?: boolean
-    communityId?: string
-    communityDefaultGroup?: boolean
+    /** the person who added you */
+    author?: string
 }
 
 

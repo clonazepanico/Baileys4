@@ -2,6 +2,7 @@ import { Boom } from '@hapi/boom'
 import { AxiosRequestConfig } from 'axios'
 import { exec } from 'child_process'
 import * as Crypto from 'crypto'
+import { LTTB } from 'downsample'
 import { once } from 'events'
 import { createReadStream, createWriteStream, promises as fs, WriteStream } from 'fs'
 import type { IAudioMetadata } from 'music-metadata'
@@ -9,6 +10,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import type { Logger } from 'pino'
 import { Readable, Transform } from 'stream'
+import { dynamicImport } from 'tsimportlib'
 import { URL } from 'url'
 import { proto } from '../../WAProto'
 import { DEFAULT_ORIGIN, MEDIA_HKDF_KEY_MAPPING, MEDIA_PATH_MAP } from '../Defaults'
@@ -16,8 +18,6 @@ import { BaileysEventMap, DownloadableMessage, MediaConnInfo, MediaDecryptionKey
 import { BinaryNode, getBinaryNodeChild, getBinaryNodeChildBuffer, jidNormalizedUser } from '../WABinary'
 import { aesDecryptGCM, aesEncryptGCM, hkdf } from './crypto'
 import { generateMessageID } from './generics'
-import { LTTB } from 'downsample';
-import { dynamicImport } from 'tsimportlib';
 
 const getTmpFilesDirectory = () => tmpdir()
 
@@ -90,23 +90,23 @@ const extractVideoThumb = async(
 			resolve()
 		}
     	})
-}) as Promise<void>
+})
 
-export const extractInfoVideo = async (
+export const extractInfoVideo = async(
 	path: string
-) => new Promise<{ width: number; height: number, duration: string  } | undefined>((resolve, reject) => {
+) => new Promise<{ width: number, height: number, duration: string } | undefined>((resolve, reject) => {
 	const cmd = `ffprobe -v quiet -show_entries stream=width,height,duration -of json=compact=1 ${path}`
 
 	exec(cmd, (err, dimensionsJson) => {
-		if (err) {
+		if(err) {
 			reject(err)
 		} else {
 			try {
 				const dimensions = JSON.parse(dimensionsJson)
-				console.log({d: dimensions?.['streams']});
-				
+				console.log({ d: dimensions?.['streams'] })
+
 				resolve(dimensions?.['streams']?.[0])
-			} catch (err2) {
+			} catch(err2) {
 				reject(err2)
 			}
 		}
@@ -120,7 +120,7 @@ export const extractImageThumb = async(bufferOrFilePath: Readable | Buffer | str
 
 	const lib = await getImageProcessingLibrary()
 	if('sharp' in lib && typeof lib.sharp?.default === 'function') {
-		const img = lib.sharp!.default(bufferOrFilePath)
+		const img = lib.sharp.default(bufferOrFilePath)
 		const dimensions = await img.metadata()
 
 		const buffer = await img
@@ -177,7 +177,7 @@ export const generateProfilePicture = async(mediaUpload: WAMediaUpload) => {
 	const lib = await getImageProcessingLibrary()
 	let img: Promise<Buffer>
 	if('sharp' in lib && typeof lib.sharp?.default === 'function') {
-		img = lib.sharp!.default(bufferOrFilePath)
+		img = lib.sharp.default(bufferOrFilePath)
 			.resize(640, 640)
 			.jpeg({
 				quality: 50,
@@ -227,90 +227,53 @@ export async function getAudioDuration(buffer: Buffer | string | Readable) {
 	return metadata.format.duration
 }
 
-export async function getAudioWaveform(buffer: Buffer | string | Readable) {
-
-	const oggDecoderModule = await dynamicImport('ogg-opus-decoder', module) as typeof import('ogg-opus-decoder');
-	
-	const decoder = new oggDecoderModule.OggOpusDecoder()
-	await decoder.ready
-
-	let audioInfo: any | undefined = undefined
-
-	if (Buffer.isBuffer(buffer)) {
-		audioInfo = await decoder.decodeFile(buffer)
-	} else if(typeof buffer === 'string') {
-		const rStream = createReadStream(buffer)
-		const readAllChunks = new Promise<Buffer>((resolve, reject) => {
-			let buff = Buffer.alloc(0)
-			rStream.on('data', chunk => {
-				if (typeof chunk == "string") {
-					chunk = Buffer.from(chunk)
-				}
-				buff = Buffer.concat([buff, chunk])
-			})
-			rStream.on('end', () => {
-				rStream.close()
-				resolve(buff)
-			})
-			rStream.on('error', reject)
-		});		
-		audioInfo = await decoder.decodeFile(await readAllChunks)
-	} else {
-		// audioInfo = await decoder.decodeFile(buffer.)
-	}
-
-	const simpleMovingAverage = (values: Uint8Array, window: number = 5, arrayAverage: Uint8Array) => {
-		if (!values || values.length < window) {
-			return;
-		  }
-		  let indexResult = 0;
-
-		  let index = window - 1;
-		  const length = values.length + 1;
-
-		  while (++index < length) {
-			const windowSlice = values.slice(index - window, index);
-			const sum = windowSlice.reduce((prev, curr) => prev + curr, 0);
-			arrayAverage[++indexResult] = sum / window
-		  }
-	}
-	const normalizeWaveform = (values: Uint8Array) => {
-
-		const maxValue = Math.max(...values.map((v => v)))
-		const stepValue = 100 - maxValue;
-
-		for (let index = 0; index < values.length; index++) {
-			if (values[index] > 4) {
-				values[index] += stepValue
-			}
-		}		
-
-	}	
-
-	if (audioInfo && audioInfo.channelData.length >= 1) {
-		const wave = [ ... audioInfo.channelData[0].map((a: any) => a).filter((a: any) => a >= 0) ];
-		
-		const ampDownsampled: number[] = [];
-		
-		const downsampled = LTTB(wave.map((value, index) => [index, Math.round(value*100)]), 64);
-		for (let index = 0; index < downsampled.length; index++) {			
-			const element = downsampled[index];
-			ampDownsampled.push(Math.round(element[1]));
+/**
+  referenced from and modifying https://github.com/wppconnect-team/wa-js/blob/main/src/chat/functions/prepareAudioWaveform.ts
+ */
+export async function getAudioWaveform(buffer: Buffer | string | Readable, logger?: Logger) {
+	try {
+		const audioDecode = (...args) => import('audio-decode').then(({ default: audioDecode }) => audioDecode(...args))
+		let audioData: Buffer
+		if(Buffer.isBuffer(buffer)) {
+			audioData = buffer
+		} else if(typeof buffer === 'string') {
+			const rStream = createReadStream(buffer)
+			audioData = await toBuffer(rStream)
+		} else {
+			audioData = await toBuffer(buffer)
 		}
 
-		const waveform = new Uint8Array(ampDownsampled);
-		normalizeWaveform(waveform);
-		
-		const waveFormAverage = new Uint8Array(waveform.length);
+		const audioBuffer = await audioDecode(audioData)
 
-		simpleMovingAverage(waveform, 3, waveFormAverage);
-		normalizeWaveform(waveFormAverage);
-		
-		
-		return waveFormAverage;
+		const rawData = audioBuffer.getChannelData(0) // We only need to work with one channel of data
+		const samples = 64 // Number of samples we want to have in our final data set
+		const blockSize = Math.floor(rawData.length / samples) // the number of samples in each subdivision
+		const filteredData: number[] = []
+		for(let i = 0; i < samples; i++) {
+		  	const blockStart = blockSize * i // the location of the first sample in the block
+		  	let sum = 0
+		  	for(let j = 0; j < blockSize; j++) {
+				sum = sum + Math.abs(rawData[blockStart + j]) // find the sum of all the samples in the block
+			}
+
+			filteredData.push(sum / blockSize) // divide the sum by the block size to get the average
+		}
+
+		// This guarantees that the largest data point will be set to 1, and the rest of the data will scale proportionally.
+		const multiplier = Math.pow(Math.max(...filteredData), -1)
+		const normalizedData = filteredData.map((n) => n * multiplier)
+
+		// Generate waveform like WhatsApp
+		const waveform = new Uint8Array(
+			normalizedData.map((n) => Math.floor(100 * n))
+		)
+
+		return waveform
+	} catch(e) {
+		logger?.debug('Failed to generate waveform: ' + e)
 	}
-
 }
+
 
 export const toReadable = (buffer: Buffer) => {
 	const readable = new Readable({ read: () => {} })
@@ -375,10 +338,11 @@ export async function generateThumbnail(
 		} catch(err) {
 			options.logger?.debug('could not generate video thumb: ' + err)
 		}
+
 		try {
 			const original = await extractInfoVideo(file)
 			originalImageDimensions = original
-		} catch (err) {
+		} catch(err) {
 			options.logger?.debug('could not generate video dimension: ' + err)
 		}
 	}
@@ -568,9 +532,9 @@ export const downloadEncryptedContent = async(
 		Origin: DEFAULT_ORIGIN,
 	}
 	if(startChunk || endChunk) {
-		headers!.Range = `bytes=${startChunk}-`
+		headers.Range = `bytes=${startChunk}-`
 		if(endChunk) {
-			headers!.Range += endChunk
+			headers.Range += endChunk
 		}
 	}
 
@@ -848,3 +812,8 @@ const MEDIA_RETRY_STATUS_MAP = {
 	[proto.MediaRetryNotification.ResultType.NOT_FOUND]: 404,
 	[proto.MediaRetryNotification.ResultType.GENERAL_ERROR]: 418,
 } as const
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function __importStar(arg0: any): any {
+	throw new Error('Function not implemented.')
+}
