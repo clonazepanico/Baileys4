@@ -3,7 +3,7 @@ import { GroupCipher, GroupSessionBuilder, SenderKeyDistributionMessage, SenderK
 import { SignalAuthState } from '../Types'
 import { SignalRepository } from '../Types/Signal'
 import { generateSignalPubKey } from '../Utils'
-import { jidDecode } from '../WABinary'
+import { jidDecode, jidEncode, JidWithDevice } from '../WABinary'
 
 export function makeLibSignalRepository(auth: SignalAuthState): SignalRepository {
 	const storage = signalStorage(auth)

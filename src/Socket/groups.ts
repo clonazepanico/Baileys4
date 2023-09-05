@@ -165,8 +165,8 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 				}]
 			)
 			const node = getBinaryNodeChild(result, 'membership_requests_action')
-			const nodeAction = getBinaryNodeChild(node!, action)
-			const participantsAffected = getBinaryNodeChildren(nodeAction!, 'participant')
+			const nodeAction = getBinaryNodeChild(node, action)
+			const participantsAffected = getBinaryNodeChildren(nodeAction, 'participant')
 			return participantsAffected.map(p => {
 				return { status: p.attrs.error || '200', jid: p.attrs.jid }
 			})
@@ -191,7 +191,7 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 				]
 			)
 			const node = getBinaryNodeChild(result, action)
-			const participantsAffected = getBinaryNodeChildren(node!, 'participant')
+			const participantsAffected = getBinaryNodeChildren(node, 'participant')
 			return participantsAffected.map(p => {
 				return { status: p.attrs.error || '200', jid: p.attrs.jid, content: p }
 			})
@@ -311,7 +311,7 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 	const descChild = getBinaryNodeChild(group, 'description')
 	const communityNode = getBinaryNodeChild(group, 'linked_parent')
 	const communityNodeSettings = getBinaryNodeChild(group, 'parent')
-	
+
 	let desc: string | undefined
 	let descId: string | undefined
 	let descTime: number | undefined
@@ -324,7 +324,7 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 	}
 
 	let communityId: string | undefined
-	if (communityNode) {
+	if(communityNode) {
 		communityId = communityNode.attrs.jid
 	}
 
@@ -342,9 +342,6 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 		descId,
 		descTime,
 		descOwner,
-		communityId,
-		community: !!communityNodeSettings,
-		communityDefaultGroup: !!getBinaryNodeChild(group, 'default_sub_group'), 
 		restrict: !!getBinaryNodeChild(group, 'locked'),
 		announce: !!getBinaryNodeChild(group, 'announcement'),
 		participants: getBinaryNodeChildren(group, 'participant').map(

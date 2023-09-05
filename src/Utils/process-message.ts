@@ -33,7 +33,7 @@ const REAL_MSG_REQ_ME_STUB_TYPES = new Set([
 export const cleanMessage = (message: proto.IWebMessageInfo, meId: string) => {
 	// ensure remoteJid and participant doesn't have device or agent in it
 	message.key.remoteJid = jidNormalizedUser(message.key.remoteJid!)
-	message.key.participant = message.key.participant ? jidNormalizedUser(message.key.participant!) : undefined
+	message.key.participant = message.key.participant ? jidNormalizedUser(message.key.participant) : undefined
 	const content = normalizeMessageContent(message.message)
 	// if the message has a reaction, ensure fromMe & remoteJid are from our perspective
 	if(content?.reactionMessage) {
@@ -190,7 +190,7 @@ const processMessage = async(
 	if(protocolMsg) {
 		switch (protocolMsg.type) {
 		case proto.Message.ProtocolMessage.Type.HISTORY_SYNC_NOTIFICATION:
-			const histNotification = protocolMsg!.historySyncNotification!
+			const histNotification = protocolMsg.historySyncNotification!
 			const process = shouldProcessHistoryMsg
 			const isLatest = !creds.processedHistoryMessages?.length
 
@@ -272,11 +272,11 @@ const processMessage = async(
 		}
 		ev.emit('messages.reaction', [{
 			reaction,
-			key: content.reactionMessage!.key!,
+			key: content.reactionMessage.key!,
 		}])
 	} else if(message.messageStubType) {
-		const jid = message.key!.remoteJid!
-		const key = message.key;
+		const jid = message.key.remoteJid!
+		const key = message.key
 		//let actor = whatsappID (message.participant)
 		let participants: string[]
 		const emitParticipantsUpdate = (action: ParticipantAction) => (
@@ -341,10 +341,6 @@ const processMessage = async(
 			}
 
 			break
-		case WAMessageStubType.GROUP_CHANGE_ICON:
-			const iconImg = message.messageStubParameters?.[0]
-			emitGroupUpdate({ iconImg })
-			break
 		}
 	} else if(content?.pollUpdateMessage) {
 		const creationMsgKey = content.pollUpdateMessage.pollCreationMessageKey!
@@ -353,7 +349,7 @@ const processMessage = async(
 		if(pollMsg?.message) {
 			const meIdNormalised = jidNormalizedUser(meId)
 			const pollCreatorJid = getKeyAuthor(creationMsgKey, meIdNormalised)
-			const voterJid = getKeyAuthor(message.key!, meIdNormalised)
+			const voterJid = getKeyAuthor(message.key, meIdNormalised)
 			const pollEncKey = pollMsg.message.messageContextInfo?.messageSecret!
 
 			try {

@@ -108,18 +108,18 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		await sendNode(stanza)
 	}
 
-	const rejectCall = async(call: WACall) => {
+	const rejectCall = async(callId: string, callFrom: string) => {
 		const stanza: BinaryNode = ({
 			tag: 'call',
 			attrs: {
-				from: call.from,
-				to: call.to,
+				from: authState.creds.me!.id,
+				to: callFrom,
 			},
 			content: [{
 			    tag: 'reject',
 			    attrs: {
-					'call-id': call.id,
-					'call-creator': call.creatorJid,
+					'call-id': callId,
+					'call-creator': callFrom,
 					count: '0',
 			    },
 			    content: undefined,
@@ -128,39 +128,6 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		await query(stanza)
 	}
 
-	const terminateCall = async(call: WACall) => {
-
-		const content: BinaryNode[] = []
-
-		const participants = call.devices?.map((jid) => {
-			return { tag: 'to', attrs: { jid } }
-		})
-
-		if(participants) {
-			content.push({ tag: 'destination', attrs: {}, content: participants })
-		}
-
-		const stanza: BinaryNode = ({
-			tag: 'call',
-			attrs: {
-				from: call.from,
-				to: call.to,
-			},
-			content: [
-				{
-					tag: 'terminate',
-					attrs: {
-						reason: 'timeout',
-						'call-creator': call.creatorJid,
-						'call-id': call.id,
-					},
-					content
-				},
-
-			],
-		})
-		return await query(stanza)
-	}
 
 	const sendRetryRequest = async(node: BinaryNode, forceIncludeKeys = false) => {
 		const msgId = node.attrs.id
@@ -331,11 +298,6 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		case 'unlocked':
 			msg.messageStubType = WAMessageStubType.GROUP_CHANGE_RESTRICT
 			msg.messageStubParameters = [ (child.tag === 'locked') ? 'on' : 'off' ]
-			break
-		case 'description':
-			msg.messageStubType = WAMessageStubType.GROUP_CHANGE_DESCRIPTION
-			const desc = getBinaryNodeChildString(child, 'body') || ''
-			msg.messageStubParameters = [ child.attrs.id, desc ]
 			break
 		case 'invite':
 			msg.messageStubType = WAMessageStubType.GROUP_CHANGE_INVITE_LINK
@@ -619,40 +581,18 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 						)
 					) {
 						if(isJidGroup(remoteJid)) {
-							const receipts: MessageUserReceiptUpdate[] = []
-							const participantsBatch = getBinaryNodeChildren(node, 'participants')
-							const updateKey: keyof MessageUserReceipt = status === proto.WebMessageInfo.Status.DELIVERY_ACK ? 'receiptTimestamp' : 'readTimestamp'
-
 							if(attrs.participant) {
-								ids.map(id => receipts.push({
-									key: { ...key, id },
-									receipt: {
-										userJid: jidNormalizedUser(attrs.participant),
-										[updateKey]: +attrs.t
-									}
-								}))
-							}
-
-							if(participantsBatch.length > 0) {
-								participantsBatch.map((participants) => {
-									const idMessage = participants.attrs.key
-									const users = getBinaryNodeChildren(participants, 'user')
-									users.map((user) => {
-										const userJid = user.attrs.jid
-										receipts.push({
-											key: { ...key, id: idMessage, participant: userJid },
-											receipt: {
-												userJid: jidNormalizedUser(userJid),
-												[updateKey]: +user.attrs.t
-											}
-										})
-									})
-								})
-
-							}
-
-							if(receipts.length > 0) {
-								ev.emit('message-receipt.update', receipts)
+								const updateKey: keyof MessageUserReceipt = status === proto.WebMessageInfo.Status.DELIVERY_ACK ? 'receiptTimestamp' : 'readTimestamp'
+								ev.emit(
+									'message-receipt.update',
+									ids.map(id => ({
+										key: { ...key, id },
+										receipt: {
+											userJid: jidNormalizedUser(attrs.participant),
+											[updateKey]: +attrs.t
+										}
+									}))
+								)
 							}
 						} else {
 							ev.emit(
@@ -957,7 +897,6 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		...sock,
 		sendMessageAck,
 		sendRetryRequest,
-		rejectCall,
-		terminateCall,
+		rejectCall
 	}
 }

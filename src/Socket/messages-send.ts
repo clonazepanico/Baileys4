@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto'
 import NodeCache from 'node-cache'
 import { proto } from '../../WAProto'
 import { DEFAULT_CACHE_TTLS, WA_DEFAULT_EPHEMERAL } from '../Defaults'
-import { AnyMessageContent, DisconnectReason, MediaConnInfo, MessageReceiptType, MessageRelayOptions, MiscMessageGenerationOptions, SocketConfig, WACall, WAMessageKey, WAMessageStatus } from '../Types'
+import { AnyMessageContent, DisconnectReason, MediaConnInfo, MessageReceiptType, MessageRelayOptions, MiscMessageGenerationOptions, SocketConfig, WACall, WAMessageKey } from '../Types'
 import { aggregateMessageKeysNotFromMe, assertMediaContent, bindWaitForEvent, decryptMediaRetryData, encodeSignedDeviceIdentity, encodeWAMessage, encryptMediaRetryRequest, extractDeviceJids, generateMessageID, generateWAMessage, getStatusCodeForMediaRetry, getUrlFromDirectPath, getWAUploadToServer, parseAndInjectE2ESessions, unixTimestampSeconds } from '../Utils'
 import { getUrlInfo } from '../Utils/link-preview'
 import { areJidsSameUser, BinaryNode, BinaryNodeAttributes, getBinaryNodeChild, getBinaryNodeChildren, isJidGroup, isJidUser, jidDecode, jidEncode, jidNormalizedUser, JidWithDevice, S_WHATSAPP_NET } from '../WABinary'
@@ -612,10 +612,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					})
 				}
 
-				if(additionalBinaryNode) {
-					binaryNodeContent.push(additionalBinaryNode)
-				}
-
 				const stanza: BinaryNode = {
 					tag: 'message',
 					attrs: {
@@ -670,6 +666,39 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 		return { msgId, nodeAck }
 	}
+
+	const getMediaType = (message: proto.IMessage) => {
+		if(message.imageMessage) {
+			return 'image'
+		} else if(message.videoMessage) {
+			return message.videoMessage.gifPlayback ? 'gif' : 'video'
+		} else if(message.audioMessage) {
+			return message.audioMessage.ptt ? 'ptt' : 'audio'
+		} else if(message.contactMessage) {
+			return 'vcard'
+		} else if(message.documentMessage) {
+			return 'document'
+		} else if(message.contactsArrayMessage) {
+			return 'contact_array'
+		} else if(message.liveLocationMessage) {
+			return 'livelocation'
+		} else if(message.stickerMessage) {
+			return 'sticker'
+		} else if(message.listMessage) {
+			return 'list'
+		} else if(message.listResponseMessage) {
+			return 'list_response'
+		} else if(message.buttonsResponseMessage) {
+			return 'buttons_response'
+		} else if(message.orderMessage) {
+			return 'order'
+		} else if(message.productMessage) {
+			return 'product'
+		} else if(message.interactiveResponseMessage) {
+			return 'native_flow_response'
+		}
+	}
+
 
 	const getPrivacyTokens = async(jids: string[]) => {
 		const t = unixTimestampSeconds().toString()
