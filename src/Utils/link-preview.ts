@@ -193,6 +193,8 @@ export const getUrlInfo = async(
 			return urlInfo
 		}
 	} catch(error) {
+		console.log('Error getting info for link-preview', error)
+
 		if(myCache) {
 			myCache.set(MD5(previewLink).toString(), 'not avaliable')
 		}
