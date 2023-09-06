@@ -78,16 +78,6 @@ export function makeLibSignalRepository(auth: SignalAuthState): SignalRepository
 			const senderName = jidToSignalSenderKeyName(jidGroup, meId)
 			await auth.keys.set({ 'sender-key': { [senderName]: null } })
 		},
-		async setTrueAndSenderKeyMemory(jidGroup: string, devices: JidWithDevice[]) {
-			const senderKeyMap: {[jid: string]: boolean} = {}
-
-			for(const { user, device } of devices) {
-				const jid = jidEncode(user, 's.whatsapp.net', device)
-				senderKeyMap[jid] = true
-			}
-
-			await auth.keys.set({ 'sender-key-memory': { [jidGroup]: senderKeyMap } })
-		},
 	}
 }
 
