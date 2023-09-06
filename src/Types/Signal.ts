@@ -67,5 +67,4 @@ export type SignalRepository = {
 	injectE2ESession(opts: E2ESessionOpts): Promise<void>
 	jidToSignalProtocolAddress(jid: string): string
 	forceGenerateSenderKey(group: string, meId: string): Promise<void>
-	setTrueAndSenderKeyMemory(jidGroup: string, devices: JidWithDevice[]): Promise<void>
 }

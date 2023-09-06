@@ -1,11 +1,11 @@
 import { AxiosRequestConfig } from 'axios'
+import axios from 'axios'
 import MD5 from 'crypto-js/md5'
-
 import { Logger } from 'pino'
+import sharp from 'sharp'
 import { WAMediaUploadFunction, WAUrlInfo } from '../Types'
 import { prepareWAMessageMedia } from './messages'
 import { extractImageThumb, getHttpStream } from './messages-media'
-
 const THUMBNAIL_WIDTH_PX = 192
 let previewLink: any
 
@@ -20,16 +20,22 @@ const getCompressedJpegThumbnail = async(
 }
 
 const fetchImageWithAxios = async(url: string, previewLink: any) => {
-	const { default: axios } = await import('axios')
+
 	let fetched: any
 	try {
 		url = url.toString()
+
 		if(url.includes('data:image')) {
 			throw new Error('Includes data image ' + url)
 		}
 
 		fetched = await axios.get(url, { responseType: 'arraybuffer' })
-		return fetched.data
+
+		let res = fetched.data
+
+		res = await sharp(res).jpeg().toBuffer()
+
+		return res
 	} catch(error) {
 		fetched = await axios.get('https://redirectmais.com/assets/images/sample-whatsapp.jpg', { responseType: 'arraybuffer' })
 		return fetched.data
@@ -82,25 +88,25 @@ export const getUrlInfo = async(
 
 			if(info == undefined || info == null) {
 				info = await getLinkPreview(previewLink, {
-						followRedirects: 'follow',
-						timeout: 13000,
-						handleRedirects: (baseURL: string, forwardedURL: string) => {
-							const urlObj = new URL(baseURL)
-							const forwardedURLObj = new URL(forwardedURL)
-							if(retries >= maxRetry) {
-								return false
-							}
-			
-							if(
-								forwardedURLObj.hostname === urlObj.hostname
+					followRedirects: 'follow',
+					timeout: 13000,
+					handleRedirects: (baseURL: string, forwardedURL: string) => {
+						const urlObj = new URL(baseURL)
+						const forwardedURLObj = new URL(forwardedURL)
+						if(retries >= maxRetry) {
+							return false
+						}
+
+						if(
+							forwardedURLObj.hostname === urlObj.hostname
 								|| forwardedURLObj.hostname === 'www.' + urlObj.hostname
 								|| 'www.' + forwardedURLObj.hostname === urlObj.hostname
-							) {
-								retries + 1
-								return true
-							} else {
-								return false
-							}
+						) {
+							retries + 1
+							return true
+						} else {
+							return false
+						}
 					},
 					headers: opts.fetchOpts as {}
 				})
@@ -111,22 +117,22 @@ export const getUrlInfo = async(
 				followRedirects: 'follow',
 				timeout: 3000,
 				handleRedirects: (baseURL: string, forwardedURL: string) => {
-						const urlObj = new URL(baseURL)
-						const forwardedURLObj = new URL(forwardedURL)
-						if(retries >= maxRetry) {
-							return false
-						}
-		
-						if(
-							forwardedURLObj.hostname === urlObj.hostname
+					const urlObj = new URL(baseURL)
+					const forwardedURLObj = new URL(forwardedURL)
+					if(retries >= maxRetry) {
+						return false
+					}
+
+					if(
+						forwardedURLObj.hostname === urlObj.hostname
 							|| forwardedURLObj.hostname === 'www.' + urlObj.hostname
 							|| 'www.' + forwardedURLObj.hostname === urlObj.hostname
-						) {
-							retries + 1
-							return true
-						} else {
-							return false
-						}
+					) {
+						retries + 1
+						return true
+					} else {
+						return false
+					}
 				},
 				headers: opts.fetchOpts as {}
 			})
@@ -190,7 +196,7 @@ export const getUrlInfo = async(
 		if(myCache) {
 			myCache.set(MD5(previewLink).toString(), 'not avaliable')
 		}
-		
+
 		if(!error.message.includes('receive a valid')) {
 			throw error
 		}
