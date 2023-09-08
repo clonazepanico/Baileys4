@@ -64,7 +64,7 @@ export const getUrlInfo = async(
 	text: string,
 	opts: URLGenerationOptions = {
 		thumbnailWidth: THUMBNAIL_WIDTH_PX,
-		fetchOpts: { timeout: 3000 }
+		fetchOpts: { timeout: 20000 }
 	}, myCache: any
 ): Promise<WAUrlInfo | undefined> => {
 	try {
@@ -89,7 +89,7 @@ export const getUrlInfo = async(
 			if(info == undefined || info == null) {
 				info = await getLinkPreview(previewLink, {
 					followRedirects: 'follow',
-					timeout: 13000,
+					timeout: 20000,
 					handleRedirects: (baseURL: string, forwardedURL: string) => {
 						const urlObj = new URL(baseURL)
 						const forwardedURLObj = new URL(forwardedURL)
@@ -115,7 +115,7 @@ export const getUrlInfo = async(
 		} else {
 			info = await getLinkPreview(previewLink, {
 				followRedirects: 'follow',
-				timeout: 3000,
+				timeout: 20000,
 				handleRedirects: (baseURL: string, forwardedURL: string) => {
 					const urlObj = new URL(baseURL)
 					const forwardedURLObj = new URL(forwardedURL)
