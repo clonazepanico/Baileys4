@@ -33,7 +33,7 @@ const fetchImageWithAxios = async(url: string, previewLink: any) => {
 
 		let res = fetched.data
 
-		res = await sharp(res).jpeg().toBuffer()
+		res = await sharp(res).png().toBuffer()
 
 		return res
 	} catch(error) {
