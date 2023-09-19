@@ -533,20 +533,24 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 						participants.push(...result.nodes)
 					}
 
-
-					if(Object.keys(senderKeyMap).length && force_send == true) {
-						const senderKeyMapKeys = Object.keys(senderKeyMap)
-						const senderKeyMsg = {
-							senderKeyDistributionMessage: {
-								axolotlSenderKeyDistributionMessage: senderKeyDistributionMessage,
-								groupId: destinationJid
+					try {
+						if(Object.keys(senderKeyMap).length && force_send == true) {
+							const senderKeyMapKeys = Object.keys(senderKeyMap)
+							const senderKeyMsg = {
+								senderKeyDistributionMessage: {
+									axolotlSenderKeyDistributionMessage: senderKeyDistributionMessage,
+									groupId: destinationJid
+								}
 							}
+							await assertSessions(senderKeyMapKeys, false)
+							const result = await createParticipantNodes(senderKeyMapKeys, senderKeyMsg)
+							shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
+							participants.push(...result.nodes)
 						}
-						await assertSessions(senderKeyMapKeys, false)
-						const result = await createParticipantNodes(senderKeyMapKeys, senderKeyMsg)
-						shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
-						participants.push(...result.nodes)
+					} catch(error) {
+						console.log('Error trying to force send', error)
 					}
+
 
 					binaryNodeContent.push({
 						tag: 'enc',
