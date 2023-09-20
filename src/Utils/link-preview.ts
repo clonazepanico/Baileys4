@@ -33,7 +33,7 @@ const fetchImageWithAxios = async(url: string, previewLink: any) => {
 
 		let res = fetched.data
 
-		res = await sharp(res).png().toBuffer()
+		res = await sharp(res).png().resize(null, 1000, { fit: 'cover' }).toBuffer();
 
 		return res
 	} catch(error) {
