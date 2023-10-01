@@ -134,6 +134,7 @@ export default (
 			messages: newMessages,
 			isLatest
 		}) => {
+
 			if(isLatest) {
 				chats.clear()
 
