@@ -23,9 +23,9 @@ export type CacheStore = {
 }
 
 export interface RetryMessage {
-    message?: proto.IMessage;
-    additionalAttributes?: { [_: string]: string };
-    sendToAll?: boolean;
+    message?: proto.IMessage
+    additionalAttributes?: { [_: string]: string }
+    sendToAll?: boolean
 }
 
 export type SocketConfig = {
@@ -123,12 +123,7 @@ export type SocketConfig = {
     getMessage: (key: proto.IMessageKey) => Promise<RetryMessage | undefined>
 
     makeSignalRepository: (auth: SignalAuthState) => SignalRepository
-    
 
-    /** time to wait between send messages again requests */
-    sendMessagesAgainDelayMs: number
-
-    /** enable schedule nodes */
-    enableScheduleNodes: boolean
-
+    /** Socket passthrough */
+    socket?: any
 }
