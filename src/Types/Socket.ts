@@ -126,4 +126,6 @@ export type SocketConfig = {
 
     /** Socket passthrough */
     socket?: any
+
+    sendMessagesAgainDelayMs: number
 }
