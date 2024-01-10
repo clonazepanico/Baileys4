@@ -21,6 +21,12 @@ export interface GroupMetadata {
     restrict?: boolean
     /** is set when the group only allows admins to write messages */
     announce?: boolean
+    memberAddMode?: boolean
+    /** is this a community */
+    isCommunity?: boolean
+    /** is this the announce of a community */
+    isCommunityAnnounce?: boolean
+    communityParent?: unknown
     /** number of group participants */
     size?: number
     // Baileys modified array
