@@ -1,5 +1,5 @@
 import { proto } from '../../WAProto'
-import { GroupMetadata, GroupParticipant, ParticipantAction, SocketConfig, WAMessageKey, WAMessageStubType } from '../Types'
+import { CommunityActionlink, CommunityParticipantAction, GroupMetadata, GroupParticipant, ParticipantAction, SocketConfig, WAMessageKey, WAMessageStubType } from '../Types'
 import { generateMessageID, unixTimestampSeconds } from '../Utils'
 import { BinaryNode, getBinaryNodeChild, getBinaryNodeChildren, getBinaryNodeChildString, jidEncode, jidNormalizedUser } from '../WABinary'
 import { makeChatsSocket } from './chats'
@@ -78,9 +78,143 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 		await sock.cleanDirtyBits('groups')
 	})
 
+	const communityCreate = async(subject: string, description: string) => {
+		const result = await groupQuery('@g.us', 'set', [
+			{
+				tag: 'create',
+				attrs: {
+					subject,
+				},
+				content: [
+					{
+						tag: 'description',
+						attrs: {
+							id: generateMessageID(),
+						},
+						content: [
+							{
+								tag: 'body',
+								attrs: {},
+								content: Buffer.from(description, 'utf-8'),
+							},
+						],
+					},
+					{
+						tag: 'parent',
+						attrs: { },
+					},
+				],
+			},
+		])
+
+		return extractGroupMetadata(result)
+
+	}
+
+	const communityParticipantsUpdate = async(
+		jid: string,
+		participants: string[],
+		action: CommunityParticipantAction
+	) => {
+		const result = await groupQuery(
+			jid,
+			'set',
+			[
+				{
+					tag: 'admin',
+					attrs: {},
+					content: [
+						{
+							tag: action,
+							attrs: { },
+							content: participants.map(jid => ({
+								tag: 'participant',
+								attrs: { jid }
+							}))
+						}
+					]
+				}
+
+			]
+		)
+
+		const node = getBinaryNodeChild(result, 'admin')
+		const participantsAffected = getBinaryNodeChildren(node, 'participant')
+		return participantsAffected.map(p => {
+			return { status: p.attrs.error || '200', jid: p.attrs.jid }
+		})
+	}
+
+	const communityGroupsUpdate = async(jid: string, groupsJid: string[], action: CommunityActionlink) => {
+
+		const nodeAction: BinaryNode[] = []
+
+		if(action == 'link') {
+			nodeAction.push({
+				tag: 'links',
+				attrs: {},
+				content: [
+					{
+						tag: action,
+						attrs: {
+							link_type: 'sub_group'
+						},
+						content: groupsJid.map(jid => ({
+							tag: 'group',
+							attrs: { jid }
+						}))
+					}
+				]
+			})
+		}
+
+		if(action == 'unlink') {
+			nodeAction.push({
+				tag: 'unlink',
+				attrs: {
+					unlink_type: 'sub_group'
+				},
+				content: groupsJid.map(jid => ({
+					tag: 'group',
+					attrs: { jid }
+				}))
+			})
+		}
+
+		let result: BinaryNode | undefined = await groupQuery(jid, 'set', nodeAction)
+
+		if(action == 'link') {
+			result = getBinaryNodeChild(result, 'links')
+		}
+
+		const node = getBinaryNodeChild(result, action)
+		const participantsAffected = getBinaryNodeChildren(node, 'group')
+		return participantsAffected.map(p => {
+			return { status: p.attrs.error || '200', jid: p.attrs.jid }
+		})
+
+	}
+
+	const communityDeactivate = async(jid: string) => {
+		await groupQuery(
+			jid,
+			'set',
+			[
+				{
+					tag: 'delete_parent',
+					attrs: {}
+				}
+			]
+		)
+	}
+
 	return {
 		...sock,
 		groupMetadata,
+		communityDeactivate,
+		communityGroupsUpdate,
+		communityParticipantsUpdate,
+		communityCreate,
 		groupCreate: async(subject: string, participants: string[]) => {
 			const key = generateMessageID()
 			const result = await groupQuery(

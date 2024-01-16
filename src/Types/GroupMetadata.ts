@@ -3,7 +3,8 @@ import { Contact } from './Contact'
 export type GroupParticipant = (Contact & { isAdmin?: boolean, isSuperAdmin?: boolean, admin?: 'admin' | 'superadmin' | null })
 
 export type ParticipantAction = 'add' | 'remove' | 'promote' | 'demote'
-
+export type CommunityActionlink = 'link' | 'unlink'
+export type CommunityParticipantAction = 'promote' | 'demote'
 export interface GroupMetadata {
     id: string
     owner: string | undefined
