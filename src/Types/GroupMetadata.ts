@@ -6,6 +6,14 @@ export type ParticipantAction = 'add' | 'remove' | 'promote' | 'demote'
 export type CommunityActionlink = 'link' | 'unlink'
 export type CommunityParticipantAction = 'promote' | 'demote'
 export interface GroupMetadata {
+
+     /** list of community groups */
+     communityGroups?: {
+        name: string
+        jid: string
+        /** is set when the group is the community's default group */
+        isAnnouncement: boolean
+    }[]
     id: string
     owner: string | undefined
     subject: string

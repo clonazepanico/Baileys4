@@ -29,6 +29,44 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 		return extractGroupMetadata(result)
 	}
 
+	/*
+	const groupFetchAllParticipating = async() => {
+		const result = await query({
+			tag: 'iq',
+			attrs: {
+				to: '@g.us',
+				xmlns: 'w:g2',
+				type: 'get',
+			},
+			content: [
+				{
+					tag: 'participating',
+					attrs: { },
+					content: [
+						{ tag: 'participants', attrs: { } },
+						{ tag: 'description', attrs: { } }
+					]
+				}
+			]
+		})
+		const data: { [_: string]: GroupMetadata } = { }
+		const groupsChild = getBinaryNodeChild(result, 'groups')
+		if(groupsChild) {
+			const groups = getBinaryNodeChildren(groupsChild, 'group')
+			for(const groupNode of groups) {
+				const meta = extractGroupMetadata({
+					tag: 'result',
+					attrs: { },
+					content: [groupNode]
+				})
+				data[meta.id] = meta
+			}
+		}
+
+		sock.ev.emit('groups.update', Object.values(data))
+
+		return data
+	} */
 
 	const groupFetchAllParticipating = async() => {
 		const result = await query({
@@ -61,6 +99,29 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 				})
 				data[meta.id] = meta
 			}
+		}
+
+		const groups = getBinaryNodeChildren(groupsChild, 'group')
+
+		for(const metadata in data) {
+			const group = data[metadata]
+
+			if(group.isCommunity) {
+				group.communityGroups = []
+				for(const _group of groups) {
+					const linkedParent = getBinaryNodeChild(_group, 'linked_parent')
+					if(linkedParent && linkedParent.attrs.jid === group.id) {
+						const linkedGroupId = _group.attrs.id.includes('@') ? _group.attrs.id : jidEncode(_group.attrs.id, 'g.us')
+						group.communityGroups?.push({
+							name: _group.attrs.subject,
+							jid: linkedGroupId,
+							isAnnouncement: !!getBinaryNodeChild(_group, 'default_sub_group'),
+						})
+					}
+				}
+			}
+
+			data[metadata] = group
 		}
 
 		sock.ev.emit('groups.update', Object.values(data))
