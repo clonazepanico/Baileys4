@@ -2,7 +2,6 @@ import { Boom } from '@hapi/boom'
 import { AxiosRequestConfig } from 'axios'
 import { exec } from 'child_process'
 import * as Crypto from 'crypto'
-import { LTTB } from 'downsample'
 import { once } from 'events'
 import { createReadStream, createWriteStream, promises as fs, WriteStream } from 'fs'
 import type { IAudioMetadata } from 'music-metadata'
@@ -10,7 +9,6 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import type { Logger } from 'pino'
 import { Readable, Transform } from 'stream'
-import { dynamicImport } from 'tsimportlib'
 import { URL } from 'url'
 import { proto } from '../../WAProto'
 import { DEFAULT_ORIGIN, MEDIA_HKDF_KEY_MAPPING, MEDIA_PATH_MAP } from '../Defaults'
@@ -87,7 +85,7 @@ const extractVideoThumb = async(
     		if(err) {
 			reject(err)
 		} else {
-			resolve()
+			resolve(true)
 		}
     	})
 })

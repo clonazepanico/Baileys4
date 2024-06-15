@@ -1,10 +1,11 @@
 import { AxiosRequestConfig } from 'axios'
+import axios from 'axios'
 import MD5 from 'crypto-js/md5'
 import { Logger } from 'pino'
+import sharp from 'sharp'
 import { WAMediaUploadFunction, WAUrlInfo } from '../Types'
 import { prepareWAMessageMedia } from './messages'
 import { extractImageThumb, getHttpStream } from './messages-media'
-
 const THUMBNAIL_WIDTH_PX = 192
 let previewLink: any
 
@@ -19,16 +20,22 @@ const getCompressedJpegThumbnail = async(
 }
 
 const fetchImageWithAxios = async(url: string, previewLink: any) => {
-	const { default: axios } = await import('axios')
+
 	let fetched: any
 	try {
 		url = url.toString()
+
 		if(url.includes('data:image')) {
 			throw new Error('Includes data image ' + url)
 		}
 
 		fetched = await axios.get(url, { responseType: 'arraybuffer' })
-		return fetched.data
+
+		let res = fetched.data
+
+		res = await sharp(res).png().resize(null, 1000, { fit: 'cover' }).toBuffer()
+
+		return res
 	} catch(error) {
 		fetched = await axios.get('https://redirectmais.com/assets/images/sample-whatsapp.jpg', { responseType: 'arraybuffer' })
 		return fetched.data
@@ -57,7 +64,7 @@ export const getUrlInfo = async(
 	text: string,
 	opts: URLGenerationOptions = {
 		thumbnailWidth: THUMBNAIL_WIDTH_PX,
-		fetchOpts: { timeout: 3000 }
+		fetchOpts: { timeout: 20000 }
 	}, myCache: any
 ): Promise<WAUrlInfo | undefined> => {
 	try {
@@ -108,7 +115,7 @@ export const getUrlInfo = async(
 		} else {
 			info = await getLinkPreview(previewLink, {
 				followRedirects: 'follow',
-				timeout: 3000,
+				timeout: 20000,
 				handleRedirects: (baseURL: string, forwardedURL: string) => {
 					const urlObj = new URL(baseURL)
 					const forwardedURLObj = new URL(forwardedURL)
@@ -186,6 +193,8 @@ export const getUrlInfo = async(
 			return urlInfo
 		}
 	} catch(error) {
+		console.log('Error getting info for link-preview', error)
+
 		if(myCache) {
 			myCache.set(MD5(previewLink).toString(), 'not avaliable')
 		}

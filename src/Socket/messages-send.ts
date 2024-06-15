@@ -543,11 +543,13 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 								groupId: destinationJid
 							}
 						}
+						
 						await assertSessions(senderKeyMapKeys, false)
 						const result = await createParticipantNodes(senderKeyJids, senderKeyMsg, mediaType ? { mediatype: mediaType } : undefined)
 						shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
 						participants.push(...result.nodes)
 					}
+
 
 					binaryNodeContent.push({
 						tag: 'enc',
@@ -737,6 +739,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		}
 	}
 
+
 	const getPrivacyTokens = async(jids: string[]) => {
 		const t = unixTimestampSeconds().toString()
 		const result = await query({
@@ -779,7 +782,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		relayMessage,
 		sendReceipt,
 		sendReceipts,
-		getButtonArgs,
 		readMessages,
 		refreshMediaConn,
 	    	waUploadToServer,

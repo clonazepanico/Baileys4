@@ -8,7 +8,17 @@ export type RequestJoinAction = 'created' | 'revoked' | 'rejected'
 
 export type RequestJoinMethod = 'invite_link' | 'linked_group_join' | 'non_admin_add' | undefined
 
+export type CommunityActionlink = 'link' | 'unlink'
+export type CommunityParticipantAction = 'promote' | 'demote'
 export interface GroupMetadata {
+
+     /** list of community groups */
+     communityGroups?: {
+        name: string
+        jid: string
+        /** is set when the group is the community's default group */
+        isAnnouncement: boolean
+    }[]
     id: string
     owner: string | undefined
     subject: string
@@ -39,6 +49,7 @@ export interface GroupMetadata {
     isCommunity?: boolean
     /** is this the announce of a community */
     isCommunityAnnounce?: boolean
+    communityParent?: unknown
     /** number of group participants */
     size?: number
     // Baileys modified array

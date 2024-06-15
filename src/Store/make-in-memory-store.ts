@@ -95,6 +95,7 @@ export default (config: BaileysInMemoryStoreConfig) => {
 			messages: newMessages,
 			isLatest
 		}) => {
+
 			if(isLatest) {
 				chats.clear()
 

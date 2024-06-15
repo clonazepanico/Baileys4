@@ -1,6 +1,11 @@
 import { proto } from '../../WAProto'
+<<<<<<< HEAD
 import { GroupMetadata, GroupParticipant, ParticipantAction, SocketConfig, WAMessageKey, WAMessageStubType } from '../Types'
 import { generateMessageID, generateMessageIDV2, unixTimestampSeconds } from '../Utils'
+=======
+import { CommunityActionlink, CommunityParticipantAction, GroupMetadata, GroupParticipant, ParticipantAction, SocketConfig, WAMessageKey, WAMessageStubType } from '../Types'
+import { generateMessageID, unixTimestampSeconds } from '../Utils'
+>>>>>>> master
 import { BinaryNode, getBinaryNodeChild, getBinaryNodeChildren, getBinaryNodeChildString, jidEncode, jidNormalizedUser } from '../WABinary'
 import { makeChatsSocket } from './chats'
 
@@ -29,7 +34,7 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 		return extractGroupMetadata(result)
 	}
 
-
+	/*
 	const groupFetchAllParticipating = async() => {
 		const result = await query({
 			tag: 'iq',
@@ -66,6 +71,67 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 		sock.ev.emit('groups.update', Object.values(data))
 
 		return data
+	} */
+
+	const groupFetchAllParticipating = async() => {
+		const result = await query({
+			tag: 'iq',
+			attrs: {
+				to: '@g.us',
+				xmlns: 'w:g2',
+				type: 'get',
+			},
+			content: [
+				{
+					tag: 'participating',
+					attrs: { },
+					content: [
+						{ tag: 'participants', attrs: { } },
+						{ tag: 'description', attrs: { } }
+					]
+				}
+			]
+		})
+		const data: { [_: string]: GroupMetadata } = { }
+		const groupsChild = getBinaryNodeChild(result, 'groups')
+		if(groupsChild) {
+			const groups = getBinaryNodeChildren(groupsChild, 'group')
+			for(const groupNode of groups) {
+				const meta = extractGroupMetadata({
+					tag: 'result',
+					attrs: { },
+					content: [groupNode]
+				})
+				data[meta.id] = meta
+			}
+		}
+
+		const groups = getBinaryNodeChildren(groupsChild, 'group')
+
+		for(const metadata in data) {
+			const group = data[metadata]
+
+			if(group.isCommunity) {
+				group.communityGroups = []
+				for(const _group of groups) {
+					const linkedParent = getBinaryNodeChild(_group, 'linked_parent')
+					if(linkedParent && linkedParent.attrs.jid === group.id) {
+						const linkedGroupId = _group.attrs.id.includes('@') ? _group.attrs.id : jidEncode(_group.attrs.id, 'g.us')
+						group.communityGroups?.push({
+							name: _group.attrs.subject,
+							jid: linkedGroupId,
+							isAnnouncement: !!getBinaryNodeChild(_group, 'default_sub_group'),
+						})
+					}
+				}
+			}
+
+			data[metadata] = group
+		}
+
+		sock.ev.emit('groups.update', Object.values(data))
+
+		return data
 	}
 
 	sock.ws.on('CB:ib,,dirty', async(node: BinaryNode) => {
@@ -78,9 +144,143 @@ export const makeGroupsSocket = (config: SocketConfig) => {
 		await sock.cleanDirtyBits('groups')
 	})
 
+	const communityCreate = async(subject: string, description: string) => {
+		const result = await groupQuery('@g.us', 'set', [
+			{
+				tag: 'create',
+				attrs: {
+					subject,
+				},
+				content: [
+					{
+						tag: 'description',
+						attrs: {
+							id: generateMessageID(),
+						},
+						content: [
+							{
+								tag: 'body',
+								attrs: {},
+								content: Buffer.from(description, 'utf-8'),
+							},
+						],
+					},
+					{
+						tag: 'parent',
+						attrs: { },
+					},
+				],
+			},
+		])
+
+		return extractGroupMetadata(result)
+
+	}
+
+	const communityParticipantsUpdate = async(
+		jid: string,
+		participants: string[],
+		action: CommunityParticipantAction
+	) => {
+		const result = await groupQuery(
+			jid,
+			'set',
+			[
+				{
+					tag: 'admin',
+					attrs: {},
+					content: [
+						{
+							tag: action,
+							attrs: { },
+							content: participants.map(jid => ({
+								tag: 'participant',
+								attrs: { jid }
+							}))
+						}
+					]
+				}
+
+			]
+		)
+
+		const node = getBinaryNodeChild(result, 'admin')
+		const participantsAffected = getBinaryNodeChildren(node, 'participant')
+		return participantsAffected.map(p => {
+			return { status: p.attrs.error || '200', jid: p.attrs.jid }
+		})
+	}
+
+	const communityGroupsUpdate = async(jid: string, groupsJid: string[], action: CommunityActionlink) => {
+
+		const nodeAction: BinaryNode[] = []
+
+		if(action == 'link') {
+			nodeAction.push({
+				tag: 'links',
+				attrs: {},
+				content: [
+					{
+						tag: action,
+						attrs: {
+							link_type: 'sub_group'
+						},
+						content: groupsJid.map(jid => ({
+							tag: 'group',
+							attrs: { jid }
+						}))
+					}
+				]
+			})
+		}
+
+		if(action == 'unlink') {
+			nodeAction.push({
+				tag: 'unlink',
+				attrs: {
+					unlink_type: 'sub_group'
+				},
+				content: groupsJid.map(jid => ({
+					tag: 'group',
+					attrs: { jid }
+				}))
+			})
+		}
+
+		let result: BinaryNode | undefined = await groupQuery(jid, 'set', nodeAction)
+
+		if(action == 'link') {
+			result = getBinaryNodeChild(result, 'links')
+		}
+
+		const node = getBinaryNodeChild(result, action)
+		const participantsAffected = getBinaryNodeChildren(node, 'group')
+		return participantsAffected.map(p => {
+			return { status: p.attrs.error || '200', jid: p.attrs.jid }
+		})
+
+	}
+
+	const communityDeactivate = async(jid: string) => {
+		await groupQuery(
+			jid,
+			'set',
+			[
+				{
+					tag: 'delete_parent',
+					attrs: {}
+				}
+			]
+		)
+	}
+
 	return {
 		...sock,
 		groupMetadata,
+		communityDeactivate,
+		communityGroupsUpdate,
+		communityParticipantsUpdate,
+		communityCreate,
 		groupCreate: async(subject: string, participants: string[]) => {
 			const key = generateMessageID()
 			const result = await groupQuery(
@@ -336,7 +536,14 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 
 	const groupId = group.attrs.id.includes('@') ? group.attrs.id : jidEncode(group.attrs.id, 'g.us')
 	const eph = getBinaryNodeChild(group, 'ephemeral')?.attrs.expiration
-	const memberAddMode = getBinaryNodeChildString(group, 'member_add_mode') === 'all_member_add'
+	const communityParent = getBinaryNodeChild(group, 'linked_parent')
+	let communityParentJid: any
+
+	if(typeof communityParent === 'object' && communityParent !== null && 'attrs' in communityParent && typeof communityParent.attrs === 'object' && 'jid' in communityParent.attrs) {
+		communityParentJid = communityParent.attrs.jid
+	}
+
+	const memberAddMode = getBinaryNodeChildString(group, 'member_add_mode') == 'all_member_add'
 	const metadata: GroupMetadata = {
 		id: groupId,
 		subject: group.attrs.subject,
@@ -356,6 +563,7 @@ export const extractGroupMetadata = (result: BinaryNode) => {
 		restrict: !!getBinaryNodeChild(group, 'locked'),
 		announce: !!getBinaryNodeChild(group, 'announcement'),
 		isCommunity: !!getBinaryNodeChild(group, 'parent'),
+		communityParent: communityParentJid,
 		isCommunityAnnounce: !!getBinaryNodeChild(group, 'default_sub_group'),
 		joinApprovalMode: !!getBinaryNodeChild(group, 'membership_approval_mode'),
 		memberAddMode,
