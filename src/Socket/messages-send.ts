@@ -4,11 +4,12 @@ import { randomBytes } from 'crypto'
 import NodeCache from 'node-cache'
 import { proto } from '../../WAProto'
 import { DEFAULT_CACHE_TTLS, WA_DEFAULT_EPHEMERAL } from '../Defaults'
-import { AnyMessageContent, DisconnectReason, MediaConnInfo, MessageReceiptType, MessageRelayOptions, MiscMessageGenerationOptions, SocketConfig, WACall, WAMessageKey, WAMessageStatus } from '../Types'
-import { aggregateMessageKeysNotFromMe, assertMediaContent, bindWaitForEvent, decryptMediaRetryData, encodeSignedDeviceIdentity, encodeWAMessage, encryptMediaRetryRequest, extractDeviceJids, generateMessageID, generateWAMessage, getStatusCodeForMediaRetry, getUrlFromDirectPath, getWAUploadToServer, parseAndInjectE2ESessions, unixTimestampSeconds } from '../Utils'
+import { AnyMessageContent, MediaConnInfo, MessageReceiptType, MessageRelayOptions, MiscMessageGenerationOptions, SocketConfig, WACall, WAMessageKey } from '../Types'
+import { aggregateMessageKeysNotFromMe, assertMediaContent, bindWaitForEvent, decryptMediaRetryData, encodeSignedDeviceIdentity, encodeWAMessage, encryptMediaRetryRequest, extractDeviceJids, generateMessageID, generateMessageIDV2, generateWAMessage, getStatusCodeForMediaRetry, getUrlFromDirectPath, getWAUploadToServer, parseAndInjectE2ESessions, unixTimestampSeconds } from '../Utils'
 import { getUrlInfo } from '../Utils/link-preview'
 import { areJidsSameUser, BinaryNode, BinaryNodeAttributes, getBinaryNodeChild, getBinaryNodeChildren, isJidGroup, isJidUser, jidDecode, jidEncode, jidNormalizedUser, JidWithDevice, S_WHATSAPP_NET } from '../WABinary'
 import { makeGroupsSocket } from './groups'
+import ListType = proto.Message.ListMessage.ListType;
 
 export const makeMessagesSocket = (config: SocketConfig) => {
 	const {
@@ -420,7 +421,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		const meId = authState.creds.me!.id
 
 		let shouldIncludeDeviceIdentity = false
-		let nodeAck: BinaryNode = { tag: 'ack', attrs: { } }
 
 		const { user, server } = jidDecode(jid)!
 		const statusJid = 'status@broadcast'
@@ -428,7 +428,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		const isStatus = jid === statusJid
 		const isLid = server === 'lid'
 
-		msgId = msgId || generateMessageID()
+		msgId = msgId || generateMessageIDV2(sock.user?.id)
 		useUserDevicesCache = useUserDevicesCache !== false
 
 		const participants: BinaryNode[] = []
@@ -528,14 +528,14 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 						await assertSessions(senderKeyJids, false)
 
-						const result = await createParticipantNodes(senderKeyJids, senderKeyMsg)
+						const result = await createParticipantNodes(senderKeyJids, senderKeyMsg, mediaType ? { mediatype: mediaType } : undefined)
 						shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
 
 						participants.push(...result.nodes)
 					}
 
 
-					if(Object.keys(senderKeyMap).length && force_send == true) {
+					if(Object.keys(senderKeyMap).length && force_send === true) {
 						const senderKeyMapKeys = Object.keys(senderKeyMap)
 						const senderKeyMsg = {
 							senderKeyDistributionMessage: {
@@ -544,7 +544,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 							}
 						}
 						await assertSessions(senderKeyMapKeys, false)
-						const result = await createParticipantNodes(senderKeyMapKeys, senderKeyMsg)
+						const result = await createParticipantNodes(senderKeyJids, senderKeyMsg, mediaType ? { mediatype: mediaType } : undefined)
 						shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
 						participants.push(...result.nodes)
 					}
@@ -558,7 +558,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					logger.debug({ senderKeyMap }, 'set sender-key-memory')
 					const res = await authState.keys.set({ 'sender-key-memory': { [jid]: senderKeyMap } })
 
-					if(useToOnlyNormalizeGroupSessions == true) {
+					if(useToOnlyNormalizeGroupSessions === true) {
 						return res
 					}
 				} else {
@@ -596,8 +596,8 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 						{ nodes: meNodes, shouldIncludeDeviceIdentity: s1 },
 						{ nodes: otherNodes, shouldIncludeDeviceIdentity: s2 }
 					] = await Promise.all([
-						createParticipantNodes(meJids, meMsg),
-						createParticipantNodes(otherJids, message)
+						createParticipantNodes(meJids, meMsg, mediaType ? { mediatype: mediaType } : undefined),
+						createParticipantNodes(otherJids, message, mediaType ? { mediatype: mediaType } : undefined)
 					])
 					participants.push(...meNodes)
 					participants.push(...otherNodes)
@@ -611,10 +611,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 						attrs: { },
 						content: participants
 					})
-				}
-
-				if(additionalBinaryNode) {
-					binaryNodeContent.push(additionalBinaryNode)
 				}
 
 				const stanza: BinaryNode = {
@@ -653,23 +649,92 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					logger.debug({ jid }, 'adding device identity')
 				}
 
-				logger.info({ msgId }, `sending message to ${participants.length} devices`)
+				const buttonType = getButtonType(message)
+				if(buttonType) {
+					(stanza.content as BinaryNode[]).push({
+						tag: 'biz',
+						attrs: { },
+						content: [
+							{
+								tag: buttonType,
+								attrs: getButtonArgs(message),
+							}
+						]
+					})
 
-				try {
-					nodeAck = await query(stanza)
-				} catch(e) {
-					if((e as Boom)?.output?.statusCode != DisconnectReason.timedOut) {
-						throw e
-					}
-
-					nodeAck.tag = 'error-timeout'
+					logger.debug({ jid }, 'adding business node')
 				}
 
+				logger.debug({ msgId }, `sending message to ${participants.length} devices`)
 
+				await sendNode(stanza)
 			}
 		)
 
-		return { msgId, nodeAck }
+		return msgId
+	}
+
+
+	const getMediaType = (message: proto.IMessage) => {
+		if(message.imageMessage) {
+			return 'image'
+		} else if(message.videoMessage) {
+			return message.videoMessage.gifPlayback ? 'gif' : 'video'
+		} else if(message.audioMessage) {
+			return message.audioMessage.ptt ? 'ptt' : 'audio'
+		} else if(message.contactMessage) {
+			return 'vcard'
+		} else if(message.documentMessage) {
+			return 'document'
+		} else if(message.contactsArrayMessage) {
+			return 'contact_array'
+		} else if(message.liveLocationMessage) {
+			return 'livelocation'
+		} else if(message.stickerMessage) {
+			return 'sticker'
+		} else if(message.listMessage) {
+			return 'list'
+		} else if(message.listResponseMessage) {
+			return 'list_response'
+		} else if(message.buttonsResponseMessage) {
+			return 'buttons_response'
+		} else if(message.orderMessage) {
+			return 'order'
+		} else if(message.productMessage) {
+			return 'product'
+		} else if(message.interactiveResponseMessage) {
+			return 'native_flow_response'
+		}
+	}
+
+	const getButtonType = (message: proto.IMessage) => {
+		if(message.buttonsMessage) {
+			return 'buttons'
+		} else if(message.buttonsResponseMessage) {
+			return 'buttons_response'
+		} else if(message.interactiveResponseMessage) {
+			return 'interactive_response'
+		} else if(message.listMessage) {
+			return 'list'
+		} else if(message.listResponseMessage) {
+			return 'list_response'
+		}
+	}
+
+	const getButtonArgs = (message: proto.IMessage): BinaryNode['attrs'] => {
+		if(message.templateMessage) {
+			// TODO: Add attributes
+			return {}
+		} else if(message.listMessage) {
+			const type = message.listMessage.listType
+			if(!type) {
+				throw new Boom('Expected list type inside message')
+			}
+
+			return { v: '2', type: ListType[type].toLowerCase() }
+		} else {
+			return {}
+		}
 	}
 
 	const getPrivacyTokens = async(jids: string[]) => {
@@ -812,6 +877,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 						upload: waUploadToServer,
 						mediaCache: config.mediaCache,
 						options: config.options,
+						messageId: generateMessageIDV2(sock.user?.id),
 						...options,
 					}
 				)

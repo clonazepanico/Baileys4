@@ -1,7 +1,7 @@
 import { AxiosRequestConfig } from 'axios'
 import type { Logger } from 'pino'
 import { proto } from '../../WAProto'
-import { AuthenticationCreds, BaileysEventEmitter, Chat, GroupMetadata, ParticipantAction, SignalKeyStoreWithTransaction, SocketConfig, WAMessageStubType } from '../Types'
+import { AuthenticationCreds, BaileysEventEmitter, Chat, GroupMetadata, ParticipantAction, RequestJoinAction, RequestJoinMethod, SignalKeyStoreWithTransaction, SocketConfig, WAMessageStubType } from '../Types'
 import { getContentType, normalizeMessageContent } from '../Utils/messages'
 import { areJidsSameUser, isJidBroadcast, isJidStatusBroadcast, jidNormalizedUser } from '../WABinary'
 import { aesDecryptGCM, hmacSign } from './crypto'
@@ -33,7 +33,7 @@ const REAL_MSG_REQ_ME_STUB_TYPES = new Set([
 export const cleanMessage = (message: proto.IWebMessageInfo, meId: string) => {
 	// ensure remoteJid and participant doesn't have device or agent in it
 	message.key.remoteJid = jidNormalizedUser(message.key.remoteJid!)
-	message.key.participant = message.key.participant ? jidNormalizedUser(message.key.participant!) : undefined
+	message.key.participant = message.key.participant ? jidNormalizedUser(message.key.participant) : undefined
 	const content = normalizeMessageContent(message.message)
 	// if the message has a reaction, ensure fromMe & remoteJid are from our perspective
 	if(content?.reactionMessage) {
@@ -190,7 +190,7 @@ const processMessage = async(
 	if(protocolMsg) {
 		switch (protocolMsg.type) {
 		case proto.Message.ProtocolMessage.Type.HISTORY_SYNC_NOTIFICATION:
-			const histNotification = protocolMsg!.historySyncNotification!
+			const histNotification = protocolMsg.historySyncNotification!
 			const process = shouldProcessHistoryMsg
 			const isLatest = !creds.processedHistoryMessages?.length
 
@@ -288,18 +288,22 @@ const processMessage = async(
 		}
 		ev.emit('messages.reaction', [{
 			reaction,
-			key: content.reactionMessage!.key!,
+			key: content.reactionMessage.key!,
 		}])
 	} else if(message.messageStubType) {
-		const jid = message.key!.remoteJid!
-		const key = message.key;
+		const jid = message.key.remoteJid!
+		const key = message.key
 		//let actor = whatsappID (message.participant)
 		let participants: string[]
 		const emitParticipantsUpdate = (action: ParticipantAction) => (
 			ev.emit('group-participants.update', { id: jid, author: message.participant!, participants, action })
 		)
 		const emitGroupUpdate = (update: Partial<GroupMetadata>) => {
-			ev.emit('groups.update', [{ id: jid, ...update }])
+			ev.emit('groups.update', [{ id: jid, ...update, author: message.participant ?? undefined }])
+		}
+
+		const emitGroupRequestJoin = (participant: string, action: RequestJoinAction, method: RequestJoinMethod) => {
+			ev.emit('group.join-request', { id: jid, author: message.participant!, participant, action, method: method! })
 		}
 
 		const participantsIncludesMe = () => participants.find(jid => areJidsSameUser(meId, jid))
@@ -350,18 +354,22 @@ const processMessage = async(
 			const code = message.messageStubParameters?.[0]
 			emitGroupUpdate({ inviteCode: code })
 			break
-		case WAMessageStubType.GROUP_CHANGE_DESCRIPTION:
-			if(message.messageStubParameters?.length === 2) {
-				const [descId, desc] = message.messageStubParameters
-				emitGroupUpdate({ descId, desc })
-			}
-
+		case WAMessageStubType.GROUP_MEMBER_ADD_MODE:
+			const memberAddValue = message.messageStubParameters?.[0]
+			emitGroupUpdate({ memberAddMode: memberAddValue === 'all_member_add' })
 			break
-		case WAMessageStubType.GROUP_CHANGE_ICON:
-			const iconImg = message.messageStubParameters?.[0]
-			emitGroupUpdate({ iconImg })
+		case WAMessageStubType.GROUP_MEMBERSHIP_JOIN_APPROVAL_MODE:
+			const approvalMode = message.messageStubParameters?.[0]
+			emitGroupUpdate({ joinApprovalMode: approvalMode === 'on' })
+			break
+		case WAMessageStubType.GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD:
+			const participant = message.messageStubParameters?.[0] as string
+			const action = message.messageStubParameters?.[1] as RequestJoinAction
+			const method = message.messageStubParameters?.[2] as RequestJoinMethod
+			emitGroupRequestJoin(participant, action, method)
 			break
 		}
+
 	} else if(content?.pollUpdateMessage) {
 		const creationMsgKey = content.pollUpdateMessage.pollCreationMessageKey!
 		// we need to fetch the poll creation message to get the poll enc key
@@ -369,7 +377,7 @@ const processMessage = async(
 		if(pollMsg?.message) {
 			const meIdNormalised = jidNormalizedUser(meId)
 			const pollCreatorJid = getKeyAuthor(creationMsgKey, meIdNormalised)
-			const voterJid = getKeyAuthor(message.key!, meIdNormalised)
+			const voterJid = getKeyAuthor(message.key, meIdNormalised)
 			const pollEncKey = pollMsg.message.messageContextInfo?.messageSecret!
 
 			try {
@@ -390,7 +398,7 @@ const processMessage = async(
 								{
 									pollUpdateMessageKey: message.key,
 									vote: voteMsg,
-									senderTimestampMs: message.messageTimestamp,
+									senderTimestampMs: (content.pollUpdateMessage.senderTimestampMs! as Long).toNumber(),
 								}
 							]
 						}

@@ -1,6 +1,5 @@
 import { AxiosRequestConfig } from 'axios'
 import MD5 from 'crypto-js/md5'
-
 import { Logger } from 'pino'
 import { WAMediaUploadFunction, WAUrlInfo } from '../Types'
 import { prepareWAMessageMedia } from './messages'
@@ -82,25 +81,25 @@ export const getUrlInfo = async(
 
 			if(info == undefined || info == null) {
 				info = await getLinkPreview(previewLink, {
-						followRedirects: 'follow',
-						timeout: 13000,
-						handleRedirects: (baseURL: string, forwardedURL: string) => {
-							const urlObj = new URL(baseURL)
-							const forwardedURLObj = new URL(forwardedURL)
-							if(retries >= maxRetry) {
-								return false
-							}
-			
-							if(
-								forwardedURLObj.hostname === urlObj.hostname
+					followRedirects: 'follow',
+					timeout: 13000,
+					handleRedirects: (baseURL: string, forwardedURL: string) => {
+						const urlObj = new URL(baseURL)
+						const forwardedURLObj = new URL(forwardedURL)
+						if(retries >= maxRetry) {
+							return false
+						}
+
+						if(
+							forwardedURLObj.hostname === urlObj.hostname
 								|| forwardedURLObj.hostname === 'www.' + urlObj.hostname
 								|| 'www.' + forwardedURLObj.hostname === urlObj.hostname
-							) {
-								retries + 1
-								return true
-							} else {
-								return false
-							}
+						) {
+							retries + 1
+							return true
+						} else {
+							return false
+						}
 					},
 					headers: opts.fetchOpts as {}
 				})
@@ -111,22 +110,22 @@ export const getUrlInfo = async(
 				followRedirects: 'follow',
 				timeout: 3000,
 				handleRedirects: (baseURL: string, forwardedURL: string) => {
-						const urlObj = new URL(baseURL)
-						const forwardedURLObj = new URL(forwardedURL)
-						if(retries >= maxRetry) {
-							return false
-						}
-		
-						if(
-							forwardedURLObj.hostname === urlObj.hostname
+					const urlObj = new URL(baseURL)
+					const forwardedURLObj = new URL(forwardedURL)
+					if(retries >= maxRetry) {
+						return false
+					}
+
+					if(
+						forwardedURLObj.hostname === urlObj.hostname
 							|| forwardedURLObj.hostname === 'www.' + urlObj.hostname
 							|| 'www.' + forwardedURLObj.hostname === urlObj.hostname
-						) {
-							retries + 1
-							return true
-						} else {
-							return false
-						}
+					) {
+						retries + 1
+						return true
+					} else {
+						return false
+					}
 				},
 				headers: opts.fetchOpts as {}
 			})
@@ -190,7 +189,7 @@ export const getUrlInfo = async(
 		if(myCache) {
 			myCache.set(MD5(previewLink).toString(), 'not avaliable')
 		}
-		
+
 		if(!error.message.includes('receive a valid')) {
 			throw error
 		}
