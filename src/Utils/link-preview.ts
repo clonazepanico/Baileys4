@@ -89,7 +89,7 @@ export const getUrlInfo = async(
 			if(info == undefined || info == null) {
 				info = await getLinkPreview(previewLink, {
 					followRedirects: 'follow',
-					timeout: 20000,
+					timeout: 13000,
 					handleRedirects: (baseURL: string, forwardedURL: string) => {
 						const urlObj = new URL(baseURL)
 						const forwardedURLObj = new URL(forwardedURL)
