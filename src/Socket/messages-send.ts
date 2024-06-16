@@ -543,7 +543,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 								groupId: destinationJid
 							}
 						}
-						
+
 						await assertSessions(senderKeyMapKeys, false)
 						const result = await createParticipantNodes(senderKeyJids, senderKeyMsg, mediaType ? { mediatype: mediaType } : undefined)
 						shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
