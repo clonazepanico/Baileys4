@@ -684,6 +684,15 @@ export const makeSocket = (config: SocketConfig) => {
 		end(new Boom('Multi-device beta not joined', { statusCode: DisconnectReason.multideviceMismatch }))
 	})
 
+	ws.on('CB:ib,,edge_routing', (node: BinaryNode) => {
+		const edgeRoutingNode = getBinaryNodeChild(node, 'edge_routing')
+		const routingInfo = getBinaryNodeChild(edgeRoutingNode, 'routing_info')
+		if(routingInfo?.content) {
+			authState.creds.routingInfo = Buffer.from(routingInfo?.content as Uint8Array)
+			ev.emit('creds.update', authState.creds)
+		}
+	})
+
 	let didStartBuffer = false
 	process.nextTick(() => {
 		if(creds.me?.id) {
