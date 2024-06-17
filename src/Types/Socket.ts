@@ -43,6 +43,9 @@ export type SocketConfig = {
 	mobile?: boolean
     /** proxy agent */
     agent?: Agent
+    /** max retry count */
+    maxMsgRetryCount: number
+
     /** pino logger */
     logger: Logger
     /** version to connect with */

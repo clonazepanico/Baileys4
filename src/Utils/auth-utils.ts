@@ -209,6 +209,7 @@ export const initAuthCreds = (): AuthenticationCreds => {
 			unarchiveChats: false
 		},
 		// mobile creds
+		// mobile creds
 		deviceId: Buffer.from(uuidv4().replace(/-/g, ''), 'hex').toString('base64url'),
 		phoneId: uuidv4(),
 		identityId: randomBytes(20),
@@ -216,5 +217,6 @@ export const initAuthCreds = (): AuthenticationCreds => {
 		backupToken: randomBytes(20),
 		registration: {} as never,
 		pairingCode: undefined,
+		lastPropHash: undefined,
 	}
 }

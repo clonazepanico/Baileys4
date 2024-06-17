@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { proto } from '../../WAProto'
 import { makeLibSignalRepository } from '../Signal/libsignal'
 import type { AuthenticationState, MediaType, SocketConfig, WAVersion } from '../Types'
@@ -19,10 +20,12 @@ export const PHONE_CONNECTION_CB = 'CB:Pong'
 
 export const WA_DEFAULT_EPHEMERAL = 7 * 24 * 60 * 60
 
+const WA_VERSION = '2.24.6.77'
 
-export const MOBILE_TOKEN = Buffer.from('0a1mLfGUIBVrMKF1RdvLI5lkRBvof6vn0fD2QRSM3d3683e76445591c0591bc3c034c3bca')
+const WA_VERSION_HASH = createHash('md5').update(WA_VERSION).digest('hex')
+export const MOBILE_TOKEN = Buffer.from('0a1mLfGUIBVrMKF1RdvLI5lkRBvof6vn0fD2QRSM' + WA_VERSION_HASH)
 export const MOBILE_REGISTRATION_ENDPOINT = 'https://v.whatsapp.net/v2'
-export const MOBILE_USERAGENT = 'WhatsApp/2.23.13.82 iOS/15.3.1 Device/Apple-iPhone_7'
+export const MOBILE_USERAGENT = `WhatsApp/${WA_VERSION} iOS/15.3.1 Device/Apple-iPhone_7`
 export const REGISTRATION_PUBLIC_KEY = Buffer.from([
 	5, 142, 140, 15, 116, 195, 235, 197, 215, 166, 134, 92, 108, 60, 132, 56, 86, 176, 97, 33, 204, 232, 234, 119, 77,
 	34, 251, 111, 18, 37, 18, 48, 45,
@@ -44,18 +47,17 @@ export const WA_CERT_DETAILS = {
 }
 
 export const PROCESSABLE_HISTORY_TYPES = [
-	proto.Message.HistorySyncNotification.HistorySyncType.INITIAL_BOOTSTRAP,
-	proto.Message.HistorySyncNotification.HistorySyncType.PUSH_NAME,
-	proto.Message.HistorySyncNotification.HistorySyncType.RECENT,
-	proto.Message.HistorySyncNotification.HistorySyncType.FULL
+	proto.HistorySyncNotification.HistorySyncType.INITIAL_BOOTSTRAP,
+	proto.HistorySyncNotification.HistorySyncType.PUSH_NAME,
+	proto.HistorySyncNotification.HistorySyncType.RECENT,
+	proto.HistorySyncNotification.HistorySyncType.FULL
 ]
 
 export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 	version: version as WAVersion,
-	browser: Browsers.baileys('Chrome'),
+	browser: Browsers.ubuntu('Chrome'),
 	waWebSocketUrl: 'wss://web.whatsapp.com/ws/chat',
 	connectTimeoutMs: 20_000,
-	connectionLostTimeoutMs: 120_000,
 	keepAliveIntervalMs: 30_000,
 	logger: logger.child({ class: 'baileys' }),
 	printQRInTerminal: false,
@@ -63,6 +65,7 @@ export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 	defaultQueryTimeoutMs: 60_000,
 	customUploadHosts: [],
 	retryRequestDelayMs: 250,
+	maxMsgRetryCount: 5,
 	fireInitQueries: true,
 	auth: undefined as unknown as AuthenticationState,
 	markOnlineOnConnect: true,
@@ -79,7 +82,6 @@ export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 		snapshot: false,
 	},
 	getMessage: async() => undefined,
-	sendMessagesAgainDelayMs: 250,
 	makeSignalRepository: makeLibSignalRepository
 }
 
