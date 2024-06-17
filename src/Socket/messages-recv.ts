@@ -518,6 +518,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			await authState.keys.set({ 'sender-key-memory': { [remoteJid]: null } })
 		}
 
+
 		logger.debug({ participant, sendToAll }, 'forced new session for retry recp')
 
 		for(let i = 0; i < msgs.length;i++) {
