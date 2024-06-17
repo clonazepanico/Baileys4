@@ -817,7 +817,6 @@ export const makeChatsSocket = (config: SocketConfig) => {
 	 * */
 	const executeInitQueries = async() => {
 		await Promise.all([
-			fetchAbt(),
 			fetchProps(),
 			fetchBlocklist(),
 			fetchPrivacySettings(),

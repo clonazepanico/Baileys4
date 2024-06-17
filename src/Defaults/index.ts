@@ -57,12 +57,12 @@ export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 	version: version as WAVersion,
 	browser: Browsers.ubuntu('Chrome'),
 	waWebSocketUrl: 'wss://web.whatsapp.com/ws/chat',
-	connectTimeoutMs: 20_000,
-	keepAliveIntervalMs: 30_000,
+	connectTimeoutMs: 20000,
+	keepAliveIntervalMs: 30000,
 	logger: logger.child({ class: 'baileys' }),
 	printQRInTerminal: false,
 	emitOwnEvents: true,
-	defaultQueryTimeoutMs: 60_000,
+	defaultQueryTimeoutMs: 60000,
 	customUploadHosts: [],
 	retryRequestDelayMs: 250,
 	maxMsgRetryCount: 5,
@@ -76,13 +76,15 @@ export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 	linkPreviewImageThumbnailWidth: 192,
 	transactionOpts: { maxCommitRetries: 10, delayBetweenTriesMs: 3000 },
 	generateHighQualityLinkPreview: false,
-	options: { },
+	options: {},
 	appStateMacVerification: {
 		patch: false,
 		snapshot: false,
 	},
 	getMessage: async() => undefined,
-	makeSignalRepository: makeLibSignalRepository
+	makeSignalRepository: makeLibSignalRepository,
+	connectionLostTimeoutMs: undefined,
+	sendMessagesAgainDelayMs: 0
 }
 
 export const MEDIA_PATH_MAP: { [T in MediaType]?: string } = {
