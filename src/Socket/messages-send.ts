@@ -532,21 +532,14 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 							}
 						}
 
+						message.senderKeyDistributionMessage = senderKeyMsg.senderKeyDistributionMessage
+
 						await assertSessions(senderKeyJids, false)
 
-						const result = await createParticipantNodes(senderKeyJids, senderKeyMsg)
+						const result = await createParticipantNodes(senderKeyJids, participant ? message : senderKeyMsg, mediaType ? { mediatype: mediaType } : undefined)
 						shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
 
-						if(participant) {
-							const toNode = result.nodes[0]
-							const encNode = getBinaryNodeChild(toNode, 'enc')
-
-							if(encNode) {
-								binaryNodeContent.push(encNode)
-							}
-						} else {
-							participants.push(...result.nodes)
-						}
+						participants.push(...result.nodes)
 					}
 
 					try {
@@ -559,7 +552,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 								}
 							}
 							await assertSessions(senderKeyMapKeys, false)
-							const result = await createParticipantNodes(senderKeyMapKeys, senderKeyMsg)
+							const result = await createParticipantNodes(senderKeyJids, participant ? message : senderKeyMsg, mediaType ? { mediatype: mediaType } : undefined)
 							shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
 							participants.push(...result.nodes)
 						}
@@ -569,11 +562,13 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 
 					if(!participant) {
-						binaryNodeContent.push({
+						const enc: BinaryNode = {
 							tag: 'enc',
 							attrs: { v: '2', type: 'skmsg' },
 							content: ciphertext
-						})
+						}
+
+						binaryNodeContent.push(enc)
 					}
 
 					logger.debug({ senderKeyMap }, 'set sender-key-memory')
@@ -626,7 +621,11 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || s1 || s2
 				}
 
-				if(participants.length) {
+				if(participants.length === 1 && participant) {
+					const enc = getBinaryNodeChild(participants[0], 'enc')!
+					enc.attrs.count = `${participant.count}`
+					binaryNodeContent.push(enc)
+				} else if(participants.length) {
 					binaryNodeContent.push({
 						tag: 'participants',
 						attrs: { },
@@ -687,6 +686,19 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		)
 
 		return { msgId, nodeAck }
+	}
+
+	const getMessageType = (message: proto.IMessage) => {
+		const mediaType = getMediaType(message)
+
+		if(mediaType) {
+			return 'media'
+		} else if(message.reactionMessage) {
+			return 'reaction'
+		}
+
+		return 'text'
+
 	}
 
 	const getMediaType = (message: proto.IMessage) => {
