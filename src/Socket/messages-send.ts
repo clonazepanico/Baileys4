@@ -839,7 +839,11 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 								uploadImage: generateHighQualityLinkPreview
 									? waUploadToServer
 									: undefined
-							}, options?.myCache
+							},
+							options?.myCache,
+							options?.sendThumbnail,
+							options?.thumbnailLink
+
 						),
 						upload: waUploadToServer,
 						mediaCache: config.mediaCache,

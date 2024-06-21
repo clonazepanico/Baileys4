@@ -65,12 +65,15 @@ export const getUrlInfo = async(
 	opts: URLGenerationOptions = {
 		thumbnailWidth: THUMBNAIL_WIDTH_PX,
 		fetchOpts: { timeout: 20000 }
-	}, myCache: any
+	},
+	myCache?: any,
+	sendThumbnail?: boolean,
+	thumbnailLink?: string,
 ): Promise<WAUrlInfo | undefined> => {
 	try {
 		// retries
 		const retries = 0
-		const maxRetry = 5
+		const maxRetry = 2
 
 		const { getLinkPreview } = await import('link-preview-js')
 		let previewLink = text
@@ -80,8 +83,9 @@ export const getUrlInfo = async(
 
 		var info: any
 
-		if(myCache) {
+		if(myCache && sendThumbnail !== false) {
 			info = myCache.get(MD5(previewLink).toString())
+
 			if(info == 'not avaliable') {
 				return undefined
 			}
@@ -110,36 +114,17 @@ export const getUrlInfo = async(
 					},
 					headers: opts.fetchOpts as {}
 				})
+
 				myCache.set(MD5(previewLink).toString(), info)
 			}
-		} else {
-			info = await getLinkPreview(previewLink, {
-				followRedirects: 'follow',
-				timeout: 20000,
-				handleRedirects: (baseURL: string, forwardedURL: string) => {
-					const urlObj = new URL(baseURL)
-					const forwardedURLObj = new URL(forwardedURL)
-					if(retries >= maxRetry) {
-						return false
-					}
-
-					if(
-						forwardedURLObj.hostname === urlObj.hostname
-							|| forwardedURLObj.hostname === 'www.' + urlObj.hostname
-							|| 'www.' + forwardedURLObj.hostname === urlObj.hostname
-					) {
-						retries + 1
-						return true
-					} else {
-						return false
-					}
-				},
-				headers: opts.fetchOpts as {}
-			})
 		}
 
-		if(info) {
-			const [image] = info.images
+		if(info && sendThumbnail !== false) {
+			let [image] = info.images
+
+			if(typeof thumbnailLink === 'string') {
+				image = thumbnailLink
+			}
 
 			const urlInfo: WAUrlInfo = {
 				'canonical-url': info.url,

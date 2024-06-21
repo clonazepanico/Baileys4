@@ -233,6 +233,10 @@ export type MiscMessageGenerationOptions = MinimalRelayOptions & {
 
     custom_message_handler?: any
 
+    sendThumbnail?: boolean
+
+    thumbnailLink?: string
+
     force_send?: boolean
     /** jid list of participants for status@broadcast */
     statusJidList?: string[]

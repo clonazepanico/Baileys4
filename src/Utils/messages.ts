@@ -71,7 +71,7 @@ export const extractUrlFromText = (text: string) => (
 	!URL_EXCLUDE_REGEX.test(text) ? text.match(URL_REGEX)?.[0] : undefined
 )
 
-export const generateLinkPreviewIfRequired = async(text: string, getUrlInfo: MessageGenerationOptions['getUrlInfo'], logger: MessageGenerationOptions['logger'], myCache?: any) => {
+export const generateLinkPreviewIfRequired = async(text: string, getUrlInfo: MessageGenerationOptions['getUrlInfo'], logger: MessageGenerationOptions['logger']) => {
 	const url = extractUrlFromText(text)
 	if(!!getUrlInfo && url) {
 		try {
@@ -367,6 +367,7 @@ export const generateWAMessageContent = async(
 			extContent.previewType = 0
 
 			const img = urlInfo.highQualityThumbnail
+
 			if(img) {
 				extContent.thumbnailDirectPath = img.directPath
 				extContent.mediaKey = img.mediaKey
@@ -378,7 +379,7 @@ export const generateWAMessageContent = async(
 			}
 		}
 
-		if(custom_url != undefined && urlInfo == undefined) {
+		if(custom_url != undefined) {
 			extContent.canonicalUrl = custom_url
 			extContent.matchedText = custom_url
 			extContent.description = 'Clique aqui para ser redirecionado'
