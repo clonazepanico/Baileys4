@@ -377,7 +377,7 @@ export const generateWAMessageContent = async(
 			}
 		}
 
-		if(custom_url != undefined && options.showThumbnail !== false) {
+		if(custom_url != undefined && options.sendThumbnail !== false) {
 			extContent.canonicalUrl = custom_url
 			extContent.matchedText = custom_url
 			extContent.description = 'Clique aqui para ser redirecionado'
