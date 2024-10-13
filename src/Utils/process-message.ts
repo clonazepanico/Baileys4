@@ -1,7 +1,7 @@
 import { AxiosRequestConfig } from 'axios'
 import type { Logger } from 'pino'
 import { proto } from '../../WAProto'
-import { AuthenticationCreds, BaileysEventEmitter, Chat, GroupMetadata, ParticipantAction, RequestJoinAction, RequestJoinMethod, SignalKeyStoreWithTransaction, SocketConfig, WAMessageStubType } from '../Types'
+import { AuthenticationCreds, BaileysEventEmitter, CacheStore, Chat, GroupMetadata, ParticipantAction, RequestJoinAction, RequestJoinMethod, SignalKeyStoreWithTransaction, SocketConfig, WAMessageStubType } from '../Types'
 import { getContentType, normalizeMessageContent } from '../Utils/messages'
 import { areJidsSameUser, isJidBroadcast, isJidStatusBroadcast, jidNormalizedUser } from '../WABinary'
 import { aesDecryptGCM, hmacSign } from './crypto'
@@ -10,6 +10,7 @@ import { downloadAndProcessHistorySyncNotification } from './history'
 
 type ProcessMessageContext = {
 	shouldProcessHistoryMsg: boolean
+	placeholderResendCache?: CacheStore
 	creds: AuthenticationCreds
 	keyStore: SignalKeyStoreWithTransaction
 	ev: BaileysEventEmitter
@@ -152,6 +153,7 @@ const processMessage = async(
 	message: proto.IWebMessageInfo,
 	{
 		shouldProcessHistoryMsg,
+		placeholderResendCache,
 		ev,
 		creds,
 		keyStore,
@@ -202,19 +204,28 @@ const processMessage = async(
 			}, 'got history notification')
 
 			if(process) {
-				ev.emit('creds.update', {
-					processedHistoryMessages: [
-						...(creds.processedHistoryMessages || []),
-						{ key: message.key, messageTimestamp: message.messageTimestamp }
-					]
-				})
+				if(histNotification.syncType !== proto.HistorySync.HistorySyncType.ON_DEMAND) {
+					ev.emit('creds.update', {
+						processedHistoryMessages: [
+							...(creds.processedHistoryMessages || []),
+							{ key: message.key, messageTimestamp: message.messageTimestamp }
+						]
+					})
+				}
 
 				const data = await downloadAndProcessHistorySyncNotification(
 					histNotification,
 					options
 				)
 
-				ev.emit('messaging-history.set', { ...data, isLatest })
+				ev.emit('messaging-history.set', {
+					...data,
+					isLatest:
+						histNotification.syncType !== proto.HistorySync.HistorySyncType.ON_DEMAND
+							? isLatest
+							: undefined,
+					peerDataRequestSessionId: histNotification.peerDataRequestSessionId
+				})
 			}
 
 			break
@@ -267,14 +278,21 @@ const processMessage = async(
 		case proto.Message.ProtocolMessage.Type.PEER_DATA_OPERATION_REQUEST_RESPONSE_MESSAGE:
 			const response = protocolMsg.peerDataOperationRequestResponseMessage!
 			if(response) {
+				placeholderResendCache?.del(response.stanzaId!)
+				// TODO: IMPLEMENT HISTORY SYNC ETC (sticker uploads etc.).
 				const { peerDataOperationResult } = response
 				for(const result of peerDataOperationResult!) {
 					const { placeholderMessageResendResponse: retryResponse } = result
 					if(retryResponse) {
 						const webMessageInfo = proto.WebMessageInfo.decode(retryResponse.webMessageInfoBytes!)
-						ev.emit('messages.update', [
-							{ key: webMessageInfo.key, update: { message: webMessageInfo.message } }
-						])
+						// wait till another upsert event is available, don't want it to be part of the PDO response message
+						setTimeout(() => {
+							ev.emit('messages.upsert', {
+								messages: [webMessageInfo],
+								type: 'notify',
+								requestId: response.stanzaId!
+							})
+						}, 500)
 					}
 				}
 			}
@@ -288,11 +306,10 @@ const processMessage = async(
 		}
 		ev.emit('messages.reaction', [{
 			reaction,
-			key: content.reactionMessage.key!,
+			key: content.reactionMessage?.key!,
 		}])
 	} else if(message.messageStubType) {
-		const jid = message.key.remoteJid!
-		const key = message.key
+		const jid = message.key?.remoteJid!
 		//let actor = whatsappID (message.participant)
 		let participants: string[]
 		const emitParticipantsUpdate = (action: ParticipantAction) => (
@@ -309,6 +326,10 @@ const processMessage = async(
 		const participantsIncludesMe = () => participants.find(jid => areJidsSameUser(meId, jid))
 
 		switch (message.messageStubType) {
+		case WAMessageStubType.GROUP_PARTICIPANT_CHANGE_NUMBER:
+			participants = message.messageStubParameters || []
+			emitParticipantsUpdate('modify')
+			break
 		case WAMessageStubType.GROUP_PARTICIPANT_LEAVE:
 		case WAMessageStubType.GROUP_PARTICIPANT_REMOVE:
 			participants = message.messageStubParameters || []
@@ -349,6 +370,11 @@ const processMessage = async(
 			const name = message.messageStubParameters?.[0]
 			chat.name = name
 			emitGroupUpdate({ subject: name })
+			break
+		case WAMessageStubType.GROUP_CHANGE_DESCRIPTION:
+			const description = message.messageStubParameters?.[0]
+			chat.description = description
+			emitGroupUpdate({ desc: description })
 			break
 		case WAMessageStubType.GROUP_CHANGE_INVITE_LINK:
 			const code = message.messageStubParameters?.[0]
