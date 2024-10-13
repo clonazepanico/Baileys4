@@ -71,7 +71,7 @@ const ButtonType = proto.Message.ButtonsMessage.HeaderType
  */
 export const extractUrlFromText = (text: string) => text.match(URL_REGEX)?.[0]
 
-export const generateLinkPreviewIfRequired = async(text: string, getUrlInfo: MessageGenerationOptions['getUrlInfo'], logger: MessageGenerationOptions['logger'], myCache?: any) => {
+export const generateLinkPreviewIfRequired = async(text: string, getUrlInfo: MessageGenerationOptions['getUrlInfo'], logger: MessageGenerationOptions['logger']) => {
 	const url = extractUrlFromText(text)
 	if(!!getUrlInfo && url) {
 		try {
@@ -80,6 +80,16 @@ export const generateLinkPreviewIfRequired = async(text: string, getUrlInfo: Mes
 		} catch(error) { // ignore if fails
 			logger?.warn({ trace: error.stack }, 'url generation failed')
 		}
+	}
+}
+
+const linkify = (text: any) => {
+	var expression = /(https?:\/\/(?:www\.|(?!www))[^\s\.]+\.[^\s]{2,}|www\.[^\s]+\.[^\s]{2,})/gi
+	var matches = text.match(expression)
+	if(matches != null) {
+		return matches[0]
+	} else {
+		return undefined
 	}
 }
 
@@ -347,21 +357,9 @@ export const generateWAMessageContent = async(
 			custom_url = extractUrlFromText(message.text)
 
 			if(custom_url == null || custom_url == undefined) {
-				function linkify(text) {
-					var expression = /(https?:\/\/(?:www\.|(?!www))[^\s\.]+\.[^\s]{2,}|www\.[^\s]+\.[^\s]{2,})/gi
-					var matches = text.match(expression)
-					if(matches != null) {
-						return matches[0]
-					} else {
-						return undefined
-					}
-				}
-
 				custom_url = linkify(message.text)
 			}
-		} catch(error) {
-
-		}
+		} catch(error) {}
 
 		if(urlInfo) {
 			extContent.canonicalUrl = urlInfo['canonical-url']
@@ -372,6 +370,7 @@ export const generateWAMessageContent = async(
 			extContent.previewType = 0
 
 			const img = urlInfo.highQualityThumbnail
+
 			if(img) {
 				extContent.thumbnailDirectPath = img.directPath
 				extContent.mediaKey = img.mediaKey
@@ -383,7 +382,7 @@ export const generateWAMessageContent = async(
 			}
 		}
 
-		if(custom_url != undefined && urlInfo == undefined) {
+		if(custom_url != undefined && options.sendThumbnail !== false && !urlInfo) {
 			extContent.canonicalUrl = custom_url
 			extContent.matchedText = custom_url
 			extContent.description = 'Clique aqui para ser redirecionado'
