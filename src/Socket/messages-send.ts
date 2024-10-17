@@ -586,7 +586,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 						}
 
 						await assertSessions(senderKeyMapKeys, false)
-						const result = await createParticipantNodes(senderKeyJids, senderKeyMsg, mediaType ? { mediatype: mediaType } : undefined)
+						const result = await createParticipantNodes(senderKeyMapKeys, senderKeyMsg)
 						shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
 						participants.push(...result.nodes)
 					}
@@ -608,14 +608,13 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 						devices.push({ user })
 						// do not send message to self if the device is 0 (mobile)
 
-						if(!(additionalAttributes?.['category'] === 'peer' && user === meUser)) {
-							if(meDevice !== undefined && meDevice !== 0) {
-								devices.push({ user: meUser })
-							}
-
-							const additionalDevices = await getUSyncDevices([ meId, jid ], !!useUserDevicesCache, true)
-							devices.push(...additionalDevices)
+						if(meDevice !== undefined && meDevice !== 0) {
+							devices.push({ user: meUser })
 						}
+
+						const additionalDevices = await getUSyncDevices([ meId, jid ], !!useUserDevicesCache, true)
+						devices.push(...additionalDevices)
+
 					}
 
 					const allJids: string[] = []
