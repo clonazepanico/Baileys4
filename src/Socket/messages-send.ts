@@ -448,7 +448,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 	const relayMessage = async(
 		jid: string,
 		message: proto.IMessage,
-		{ messageId: msgId, participant, additionalAttributes, additionalNodes, useUserDevicesCache, useCachedGroupMetadata, statusJidList, useToOnlyNormalizeGroupSessions = false, force_send = false  }: MessageRelayOptions
+		{ messageId: msgId, participant, additionalAttributes, additionalNodes, useUserDevicesCache, useCachedGroupMetadata, statusJidList, force_send = false }: MessageRelayOptions
 	) => {
 		const meId = authState.creds.me!.id
 
@@ -601,9 +601,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					logger.debug({ senderKeyMap }, 'set sender-key-memory')
 					const res = await authState.keys.set({ 'sender-key-memory': { [jid]: senderKeyMap } })
 
-					if(useToOnlyNormalizeGroupSessions === true) {
-						return res
-					}
 				} else {
 					const { user: meUser, device: meDevice } = jidDecode(meId)!
 
