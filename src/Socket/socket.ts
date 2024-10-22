@@ -29,10 +29,11 @@ import {
 	getCodeFromWSError,
 	getErrorCodeFromStreamError,
 	getNextPreKeysNode,
+	getPlatformId,
 	makeEventBuffer,
 	makeNoiseHandler,
 	printQRIfNecessaryListener,
-	promiseTimeout
+	promiseTimeout,
 } from '../Utils'
 import {
 	assertNodeErrorFree,
@@ -534,7 +535,7 @@ export const makeSocket = (config: SocketConfig) => {
 						{
 							tag: 'companion_platform_id',
 							attrs: {},
-							content: '49' // Chrome
+							content: getPlatformId(browser[1])
 						},
 						{
 							tag: 'companion_platform_display',
@@ -556,7 +557,7 @@ export const makeSocket = (config: SocketConfig) => {
 	async function generatePairingKey() {
 		const salt = randomBytes(32)
 		const randomIv = randomBytes(16)
-		const key = derivePairingCodeKey(authState.creds.pairingCode!, salt)
+		const key = await derivePairingCodeKey(authState.creds.pairingCode!, salt)
 		const ciphered = aesEncryptCTR(authState.creds.pairingEphemeralKeyPair.public, key, randomIv)
 		return Buffer.concat([salt, randomIv, ciphered])
 	}
