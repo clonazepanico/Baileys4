@@ -2558,11 +2558,6 @@ cssstyle@^2.3.0:
   dependencies:
     cssom "~0.3.6"
 
-curve25519-js@^0.0.4:
-  version "0.0.4"
-  resolved "https://registry.npmjs.org/curve25519-js/-/curve25519-js-0.0.4.tgz"
-  integrity sha512-axn2UMEnkhyDUPWOwVKBMVIzSQy2ejH2xRGy1wq81dqRwApXfIzfbE3hIX0ZRFBIihf/KDqK158DLwESu4AK1w==
-
 dargs@^7.0.0:
   version "7.0.0"
   resolved "https://registry.npmjs.org/dargs/-/dargs-7.0.0.tgz"
@@ -4967,11 +4962,10 @@ libphonenumber-js@^1.10.20:
   resolved "https://registry.npmjs.org/libphonenumber-js/-/libphonenumber-js-1.10.28.tgz"
   integrity sha512-1eAgjLrZA0+2Wgw4hs+4Q/kEBycxQo8ZLYnmOvZ3AlM8ImAVAJgDPlZtISLEzD1vunc2q8s2Pn7XwB7I8U3Kzw==
 
-"libsignal@github:WhiskeySockets/libsignal-node":
-  version "2.0.1"
-  resolved "git+ssh://git@github.com/WhiskeySockets/libsignal-node.git#83a3e3a3864511cb74df1b796373f0d49d071134"
+"libsignal@github:fourpixelit/libsignal-node":
+  version "2.0.9"
+  resolved "git+ssh://git@github.com/fourpixelit/libsignal-node.git#68376175cf9ddab2862b3acded7824132bf4af3a"
   dependencies:
-    curve25519-js "^0.0.4"
     protobufjs "6.8.8"
 
 lines-and-columns@^1.1.6:
