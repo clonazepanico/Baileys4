@@ -9,23 +9,21 @@ export function makeLibSignalRepository(auth: SignalAuthState): SignalRepository
 	const storage = signalStorage(auth)
 	return {
 		decryptGroupMessage({ group, authorJid, msg }) {
-			const senderName = jidToSignalSenderKeyName(group, authorJid)
-			const cipher = new GroupCipher(storage, senderName)
-
-			return cipher.decrypt(msg)
+				const senderName = jidToSignalSenderKeyName(group, authorJid);
+				const cipher = new libsignal.GroupCipher(storage, senderName);
+				return cipher.decrypt(msg);
 		},
 		async processSenderKeyDistributionMessage({ item, authorJid }) {
-			const builder = new GroupSessionBuilder(storage)
-			const senderName = jidToSignalSenderKeyName(item.groupId!, authorJid)
-
-			const senderMsg = new SenderKeyDistributionMessage(null, null, null, null, item.axolotlSenderKeyDistributionMessage)
-			const { [senderName]: senderKey } = await auth.keys.get('sender-key', [senderName])
-			if(!senderKey) {
-				await storage.storeSenderKey(senderName, new SenderKeyRecord())
-			}
-
-			await builder.process(senderName, senderMsg)
+				const builder = new libsignal.GroupSessionBuilder(storage);
+				const senderName = jidToSignalSenderKeyName(item.groupId!, authorJid);
+				const senderMsg = new libsignal.SenderKeyDistributionMessage(null, null, null, null, item.axolotlSenderKeyDistributionMessage);
+				const { [senderName]: senderKey } = await auth.keys.get('sender-key', [senderName]);
+				if (!senderKey) {
+						await storage.storeSenderKey(senderName, new libsignal.SenderKeyRecord());
+				}
+				await builder.process(senderName, senderMsg);
 		},
+	
 		async decryptMessage({ jid, type, ciphertext }) {
 			const addr = jidToSignalProtocolAddress(jid)
 			const session = new libsignal.SessionCipher(storage, addr)
@@ -50,17 +48,15 @@ export function makeLibSignalRepository(auth: SignalAuthState): SignalRepository
 			return { type, ciphertext: Buffer.from(body, 'binary') }
 		},
 		async encryptGroupMessage({ group, meId, data }) {
-			const senderName = jidToSignalSenderKeyName(group, meId)
-			const builder = new GroupSessionBuilder(storage)
-
-			const { [senderName]: senderKey } = await auth.keys.get('sender-key', [senderName])
-			if(!senderKey) {
-				await storage.storeSenderKey(senderName, new SenderKeyRecord())
+			const senderName = jidToSignalSenderKeyName(group, meId);
+			const builder = new libsignal.GroupSessionBuilder(storage);
+			const { [senderName]: senderKey } = await auth.keys.get('sender-key', [senderName]);
+			if (!senderKey) {
+					await storage.storeSenderKey(senderName, new libsignal.SenderKeyRecord());
 			}
-
-			const senderKeyDistributionMessage = await builder.create(senderName)
-			const session = new GroupCipher(storage, senderName)
-			const ciphertext = await session.encrypt(data)
+			const senderKeyDistributionMessage = await builder.create(senderName);
+			const session = new libsignal.GroupCipher(storage, senderName);
+			const ciphertext = await session.encrypt(data);
 
 			return {
 				ciphertext,
@@ -87,8 +83,9 @@ const jidToSignalProtocolAddress = (jid: string) => {
 }
 
 const jidToSignalSenderKeyName = (group: string, user: string): string => {
-	return new SenderKeyName(group, jidToSignalProtocolAddress(user)).toString()
-}
+	return new libsignal.SenderKeyName(group, jidToSignalProtocolAddress(user)).toString();
+};
+
 
 function signalStorage({ creds, keys }: SignalAuthState) {
 	return {
@@ -116,20 +113,17 @@ function signalStorage({ creds, keys }: SignalAuthState) {
 		},
 		removePreKey: (id: number) => keys.set({ 'pre-key': { [id]: null } }),
 		loadSignedPreKey: () => {
-			const key = creds.signedPreKey
-			return {
-				privKey: Buffer.from(key.keyPair.private),
-				pubKey: Buffer.from(key.keyPair.public)
-			}
+				const key = creds.signedPreKey;
+				return key;
 		},
-		loadSenderKey: async(keyId: string) => {
-			const { [keyId]: key } = await keys.get('sender-key', [keyId])
-			if(key) {
-				return new SenderKeyRecord(key)
-			}
+		loadSenderKey: async (keyId: string) => {
+			const { [keyId]: key } = await keys.get('sender-key', [keyId]);
+				if (key) {
+						return new libsignal.SenderKeyRecord(key);
+				}
 		},
-		storeSenderKey: async(keyId, key) => {
-			await keys.set({ 'sender-key': { [keyId]: key.serialize() } })
+		storeSenderKey: async (keyId, key) => {
+				await keys.set({ 'sender-key': { [keyId]: key } });
 		},
 		getOurRegistrationId: () => (
 			creds.registrationId
@@ -140,6 +134,9 @@ function signalStorage({ creds, keys }: SignalAuthState) {
 				privKey: Buffer.from(signedIdentityKey.private),
 				pubKey: generateSignalPubKey(signedIdentityKey.public),
 			}
-		}
+		},
+		saveIdentity: async (addr: string, identityKey: any) => {
+			await keys.set({ 'identity-key': { [addr.toString()]: identityKey } });
+		},
 	}
 }
