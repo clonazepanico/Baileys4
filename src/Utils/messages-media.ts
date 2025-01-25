@@ -85,7 +85,7 @@ const extractVideoThumb = async(
     		if(err) {
 			reject(err)
 		} else {
-			resolve(true)
+			resolve()
 		}
     	})
 })
