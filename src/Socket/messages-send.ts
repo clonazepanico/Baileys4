@@ -382,7 +382,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			}
 		}
 
-		const meJid = jidNormalizedUser(authState.creds.me.id)!
+		const meJid = jidNormalizedUser(authState.creds.me.id)
 
 		const msgId = await relayMessage(meJid, protocolMessage, {
 			additionalAttributes: {
@@ -602,14 +602,17 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					const res = await authState.keys.set({ 'sender-key-memory': { [jid]: senderKeyMap } })
 
 				} else {
-					const { user: meUser, device: meDevice } = jidDecode(meId)!
+					const { user: meUser } = jidDecode(meId)!
 
 					if(!participant) {
 						devices.push({ user })
-						// do not send message to self if the device is 0 (mobile)
-
-						if(meDevice !== undefined && meDevice !== 0) {
+						if(user !== meUser) {
 							devices.push({ user: meUser })
+						}
+
+						if(additionalAttributes?.['category'] !== 'peer') {
+							const additionalDevices = await getUSyncDevices([ meId, jid ], !!useUserDevicesCache, true)
+							devices.push(...additionalDevices)
 						}
 
 						const additionalDevices = await getUSyncDevices([ meId, jid ], !!useUserDevicesCache, true)
@@ -666,7 +669,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					tag: 'message',
 					attrs: {
 						id: msgId!,
-						type: 'text',
+						type: getMessageType(message),
 						...(additionalAttributes || {})
 					},
 					content: binaryNodeContent
@@ -711,6 +714,14 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		return msgId
 	}
 
+
+	const getMessageType = (message: proto.IMessage) => {
+		if(message.pollCreationMessage || message.pollCreationMessageV2 || message.pollCreationMessageV3) {
+			return 'poll'
+		}
+
+		return 'text'
+	}
 
 	const getMediaType = (message: proto.IMessage) => {
 		if(message.imageMessage) {
@@ -902,7 +913,9 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				const isDeleteMsg = 'delete' in content && !!content.delete
 				const isEditMsg = 'edit' in content && !!content.edit
 				const isPinMsg = 'pin' in content && !!content.pin
+				const isPollMessage = 'poll' in content && !!content.poll
 				const additionalAttributes: BinaryNodeAttributes = { }
+				const additionalNodes: BinaryNode[] = []
 				// required for delete
 				if(isDeleteMsg) {
 					// if the chat is a group, and I am not the author, then delete the message as an admin
@@ -915,6 +928,13 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					additionalAttributes.edit = '1'
 				} else if(isPinMsg) {
 					additionalAttributes.edit = '2'
+				} else if(isPollMessage) {
+					additionalNodes.push({
+						tag: 'meta',
+						attrs: {
+							polltype: 'creation'
+						},
+					} as BinaryNode)
 				}
 
 
@@ -932,9 +952,13 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					console.warn('cachedGroupMetadata in sendMessage are deprecated, now cachedGroupMetadata is part of the socket config.')
 				}
 
+<<<<<<< HEAD
 				await relayMessage(jid, fullMsg.message!, { messageId: fullMsg.key.id!, useCachedGroupMetadata: options.useCachedGroupMetadata, additionalAttributes, statusJidList: options.statusJidList, force_send: forceSend })
 
 
+=======
+				await relayMessage(jid, fullMsg.message!, { messageId: fullMsg.key.id!, useCachedGroupMetadata: options.useCachedGroupMetadata, additionalAttributes, statusJidList: options.statusJidList, additionalNodes })
+>>>>>>> 0fc740daead501fb7f603df0ee1b5b2af65b32c2
 				if(config.emitOwnEvents) {
 					process.nextTick(() => {
 						processingMutex.mutex(() => (
