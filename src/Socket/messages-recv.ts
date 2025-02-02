@@ -585,6 +585,10 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					msgRelayOpts.additionalAttributes = msg.additionalAttributes
 				}
 
+				if ((msg as any).message.additionalAttributes) {
+						msgRelayOpts.additionalAttributes = (msg as any).message.additionalAttributes;
+				}
+
 				if(msg.sendToAll === undefined) {
 					msg.sendToAll = sendToAll
 				}
