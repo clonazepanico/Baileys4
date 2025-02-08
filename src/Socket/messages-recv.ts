@@ -585,6 +585,10 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					msgRelayOpts.additionalAttributes = msg.additionalAttributes
 				}
 
+				if ((msg as any).message.additionalAttributes) {
+						msgRelayOpts.additionalAttributes = (msg as any).message.additionalAttributes;
+				}
+
 				if(msg.sendToAll === undefined) {
 					msg.sendToAll = sendToAll
 				}
@@ -619,7 +623,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			participant: attrs.participant
 		}
 
-		if(shouldIgnoreJid(remoteJid) && remoteJid !== '@s.whatsapp.net') {
+		if(shouldIgnoreJid(remoteJid, 'handleReceipt', node) && remoteJid !== '@s.whatsapp.net') {
 			logger.debug({ remoteJid }, 'ignoring receipt from jid')
 			await sendMessageAck(node)
 			return
@@ -942,6 +946,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		// current hypothesis is that if pash is sent in the ack
 		// it means -- the message hasn't reached all devices yet
 		// we'll retry sending the message here
+		/*
 		if(attrs.phash) {
 			logger.info({ attrs }, 'received phash in ack, resending message...')
 			const msg = await getMessage(key)
@@ -954,7 +959,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			} else {
 				logger.warn({ attrs }, 'could not send message again, as it was not found')
 			}
-		}
+		} */
 
 		// error in acknowledgement,
 		// device could not display the message
