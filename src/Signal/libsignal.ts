@@ -118,12 +118,12 @@ function signalStorage({ creds, keys }: SignalAuthState) {
 		},
 		loadSenderKey: async (keyId: string) => {
 			const { [keyId]: key } = await keys.get('sender-key', [keyId]);
-				if (key) {
-						return new libsignal.SenderKeyRecord(key);
-				}
+			if(key) {
+				return new libsignal.SenderKeyRecord(key);
+			}
 		},
 		storeSenderKey: async (keyId, key) => {
-				await keys.set({ 'sender-key': { [keyId]: key } });
+			await keys.set({ 'sender-key': { [keyId]: key.serialize() } })
 		},
 		getOurRegistrationId: () => (
 			creds.registrationId
