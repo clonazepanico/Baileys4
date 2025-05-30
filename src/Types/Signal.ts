@@ -52,9 +52,7 @@ type E2ESessionOpts = {
 
 export type SignalRepository = {
 	decryptGroupMessage(opts: DecryptGroupSignalOpts): Promise<Uint8Array>
-	processSenderKeyDistributionMessage(
-		opts: ProcessSenderKeyDistributionMessageOpts
-	): Promise<void>
+	processSenderKeyDistributionMessage(opts: ProcessSenderKeyDistributionMessageOpts): Promise<void>
 	decryptMessage(opts: DecryptSignalProtoOpts): Promise<Uint8Array>
 	encryptMessage(opts: EncryptMessageOpts): Promise<{
 		type: 'pkmsg' | 'msg'
@@ -68,3 +66,4 @@ export type SignalRepository = {
 	jidToSignalProtocolAddress(jid: string): string
 	forceGenerateSenderKey(group: string, meId: string): Promise<void>
 }
+
