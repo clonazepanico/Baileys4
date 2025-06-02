@@ -915,10 +915,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 							},
 							logger,
 							uploadImage: generateHighQualityLinkPreview ? waUploadToServer : undefined,
-							myCache: options?.myCache,
-							sendThumbnail: options?.sendThumbnail,
-							thumbnailLink: options?.thumbnailLink
-						}),
+						}, options.myCache, options.sendThumbnail, options.thumbnailLink),
 					//TODO: CACHE
 					getProfilePicUrl: sock.profilePictureUrl,
 					upload: waUploadToServer,
