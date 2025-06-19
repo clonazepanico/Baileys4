@@ -4,16 +4,14 @@ import MD5 from 'crypto-js/md5'
 import { Logger } from 'pino'
 import sharp from 'sharp'
 import { WAMediaUploadFunction, WAUrlInfo } from '../Types'
+import { ILogger } from './logger'
 import { prepareWAMessageMedia } from './messages'
 import { extractImageThumb, getHttpStream } from './messages-media'
 const THUMBNAIL_WIDTH_PX = 192
 let previewLink: any
 
 /** Fetches an image and generates a thumbnail for it */
-const getCompressedJpegThumbnail = async(
-	url: string,
-	{ thumbnailWidth, fetchOpts }: URLGenerationOptions
-) => {
+const getCompressedJpegThumbnail = async (url: string, { thumbnailWidth, fetchOpts }: URLGenerationOptions) => {
 	const stream = await getHttpStream(url, fetchOpts)
 	const result = await extractImageThumb(stream, thumbnailWidth)
 	return result
@@ -50,8 +48,11 @@ export type URLGenerationOptions = {
 		proxyUrl?: string
 		headers?: AxiosRequestConfig<{}>['headers']
 	}
+	myCache?: any;
+  sendThumbnail?: boolean;
+  thumbnailLink?: string;
 	uploadImage?: WAMediaUploadFunction
-	logger?: Logger
+	logger?: ILogger
 }
 
 /**
@@ -60,7 +61,7 @@ export type URLGenerationOptions = {
  * @param text first matched URL in text
  * @returns the URL info required to generate link preview
  */
-export const getUrlInfo = async(
+export const getUrlInfo = async (
 	text: string,
 	opts: URLGenerationOptions = {
 		thumbnailWidth: THUMBNAIL_WIDTH_PX,
@@ -77,7 +78,7 @@ export const getUrlInfo = async(
 
 		const { getLinkPreview } = await import('link-preview-js')
 		let previewLink = text
-		if(!text.startsWith('https://') && !text.startsWith('http://')) {
+		if (!text.startsWith('https://') && !text.startsWith('http://')) {
 			previewLink = 'https://' + previewLink
 		}
 
@@ -164,14 +165,9 @@ export const getUrlInfo = async(
 				urlInfo.highQualityThumbnail = imageMessage || undefined
 			} else {
 				try {
-					urlInfo.jpegThumbnail = image
-						? (await getCompressedJpegThumbnail(image, opts)).buffer
-						: undefined
-				} catch(error) {
-					opts.logger?.debug(
-						{ err: error.stack, url: previewLink },
-						'error in generating thumbnail'
-					)
+					urlInfo.jpegThumbnail = image ? (await getCompressedJpegThumbnail(image, opts)).buffer : undefined
+				} catch (error) {
+					opts.logger?.debug({ err: error.stack, url: previewLink }, 'error in generating thumbnail')
 				}
 			}
 
