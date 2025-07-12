@@ -622,6 +622,10 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					msg.sendToAll = sendToAll
 				}
 
+				if(sendToAll === true) {
+					msg.sendToAll = true
+				}
+
 				if(msg.sendToAll) {
 					msgRelayOpts.useUserDevicesCache = false
 				} else {
