@@ -22,7 +22,6 @@ export interface GroupMetadata {
         /** is set when the group is the community's default group */
         isAnnouncement: boolean
     }[]
-    descTime?: number
     community?: boolean
     communityId?: string
     communityDefaultGroup?: boolean
