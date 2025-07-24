@@ -1,6 +1,6 @@
 import { Boom } from '@hapi/boom'
-import { proto } from '../../WAProto'
-import { BinaryNode } from './types'
+import { proto } from '../../WAProto/index.js'
+import { type BinaryNode } from './types'
 
 // some extra useful utilities
 
@@ -23,15 +23,6 @@ export const getAllBinaryNodeChildren = ({ content }: BinaryNode) => {
 export const getBinaryNodeChild = (node: BinaryNode | undefined, childTag: string) => {
 	if (Array.isArray(node?.content)) {
 		return node?.content.find(item => item.tag === childTag)
-	}
-}
-
-export const removeBinaryNodeChild = (node: BinaryNode | undefined, childTag: string) => {
-	if(Array.isArray(node?.content)) {
-		const index = node?.content.findIndex(item => item.tag === childTag) || -1
-		if(index > -1) {
-			node?.content.splice(index, 1)
-		}
 	}
 }
 
@@ -61,7 +52,7 @@ export const getBinaryNodeChildUInt = (node: BinaryNode, childTag: string, lengt
 export const assertNodeErrorFree = (node: BinaryNode) => {
 	const errNode = getBinaryNodeChild(node, 'error')
 	if (errNode) {
-		throw new Boom(errNode.attrs.text || 'Unknown error', { data: +errNode.attrs.code })
+		throw new Boom(errNode.attrs.text || 'Unknown error', { data: +errNode.attrs.code! })
 	}
 }
 
@@ -69,7 +60,12 @@ export const reduceBinaryNodeToDictionary = (node: BinaryNode, tag: string) => {
 	const nodes = getBinaryNodeChildren(node, tag)
 	const dict = nodes.reduce(
 		(dict, { attrs }) => {
-			dict[attrs.name || attrs.config_code] = attrs.value || attrs.config_value
+			if (typeof attrs.name === 'string') {
+				dict[attrs.name] = attrs.value! || attrs.config_value!
+			} else {
+				dict[attrs.config_code!] = attrs.value! || attrs.config_value!
+			}
+
 			return dict
 		},
 		{} as { [_: string]: string }
@@ -93,7 +89,7 @@ export const getBinaryNodeMessages = ({ content }: BinaryNode) => {
 function bufferToUInt(e: Uint8Array | Buffer, t: number) {
 	let a = 0
 	for (let i = 0; i < t; i++) {
-		a = 256 * a + e[i]
+		a = 256 * a + e[i]!
 	}
 
 	return a
@@ -101,9 +97,10 @@ function bufferToUInt(e: Uint8Array | Buffer, t: number) {
 
 const tabs = (n: number) => '\t'.repeat(n)
 
-export function binaryNodeToString(node: BinaryNode | BinaryNode['content'], i = 0) {
+export function binaryNodeToString(node: BinaryNode | BinaryNode['content'], i = 0): string {
 	if (!node) {
-		return node
+		// @ts-ignore
+		return node!
 	}
 
 	if (typeof node === 'string') {
