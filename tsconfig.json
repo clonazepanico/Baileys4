@@ -16,7 +16,6 @@
     "verbatimModuleSyntax": false,
     "allowImportingTsExtensions": true,
     "noEmit": true,
-
     // Type Safety
     "noFallthroughCasesInSwitch": false,
     "noUncheckedIndexedAccess": false,
