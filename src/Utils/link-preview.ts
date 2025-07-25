@@ -1,6 +1,6 @@
 import { AxiosRequestConfig } from 'axios'
 import axios from 'axios'
-import MD5 from 'crypto-js/md5'
+import { MD5 } from 'crypto-js'
 import { Logger } from 'pino'
 import sharp from 'sharp'
 import { WAMediaUploadFunction, WAUrlInfo } from '../Types'
