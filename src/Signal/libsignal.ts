@@ -13,9 +13,10 @@ export function makeLibSignalRepository(auth: SignalAuthState): SignalRepository
 	const storage: SenderKeyStore = signalStorage(auth)
 	return {
 		decryptGroupMessage({ group, authorJid, msg }) {
-				const senderName = jidToSignalSenderKeyName(group, authorJid);
-				const cipher = new libsignal.GroupCipher(storage, senderName);
-				return cipher.decrypt(msg);
+			const senderName = jidToSignalSenderKeyName(group, authorJid)
+			const cipher = new GroupCipher(storage, senderName)
+
+			return cipher.decrypt(msg)
 		},
 		async processSenderKeyDistributionMessage({ item, authorJid }) {
 			const builder = new GroupSessionBuilder(storage)
@@ -40,7 +41,6 @@ export function makeLibSignalRepository(auth: SignalAuthState): SignalRepository
 
 			await builder.process(senderName, senderMsg)
 		},
-	
 		async decryptMessage({ jid, type, ciphertext }) {
 			const addr = jidToSignalProtocolAddress(jid)
 			const session = new libsignal.SessionCipher(storage, addr)
@@ -73,11 +73,12 @@ export function makeLibSignalRepository(auth: SignalAuthState): SignalRepository
 			const senderNameStr = senderName.toString()
 			const { [senderNameStr]: senderKey } = await auth.keys.get('sender-key', [senderNameStr])
 			if (!senderKey) {
-					await storage.storeSenderKey(senderName, new libsignal.SenderKeyRecord());
+				await storage.storeSenderKey(senderName, new SenderKeyRecord())
 			}
-			const senderKeyDistributionMessage = await builder.create(senderName);
-			const session = new libsignal.GroupCipher(storage, senderName);
-			const ciphertext = await session.encrypt(data);
+
+			const senderKeyDistributionMessage = await builder.create(senderName)
+			const session = new GroupCipher(storage, senderName)
+			const ciphertext = await session.encrypt(data)
 
 			return {
 				ciphertext,
@@ -134,8 +135,11 @@ function signalStorage({ creds, keys }: SignalAuthState): SenderKeyStore & Recor
 		},
 		removePreKey: (id: number) => keys.set({ 'pre-key': { [id]: null } }),
 		loadSignedPreKey: () => {
-				const key = creds.signedPreKey;
-				return key;
+			const key = creds.signedPreKey
+			return {
+				privKey: Buffer.from(key.keyPair.private),
+				pubKey: Buffer.from(key.keyPair.public)
+			}
 		},
 		loadSenderKey: async (senderKeyName: SenderKeyName) => {
 			const keyId = senderKeyName.toString()
