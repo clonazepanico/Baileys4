@@ -3,9 +3,8 @@ import axios, { type AxiosRequestConfig } from 'axios'
 import { createHash, randomBytes } from 'crypto'
 import { platform, release } from 'os'
 import { proto } from '../../WAProto/index.js'
-// @ts-ignore - This file is generated during build
-import { version } from '../Defaults/baileys-version.js'
-const baileysVersion = version
+import version from '../Defaults/baileys-version.json' with { type: 'json' }
+const baileysVersion = version.version
 import type {
 	BaileysEventEmitter,
 	BaileysEventMap,
@@ -71,14 +70,9 @@ export const getKeyAuthor = (key: proto.IMessageKey | undefined | null, meId = '
 
 export const writeRandomPadMax16 = (msg: Uint8Array) => {
 	const pad = randomBytes(1)
+	const padLength = (pad[0]! & 0x0f) + 1
 
-	if (pad[0]) {
-		pad[0] &= 0xf
-	} else {
-		pad[0] = 0xf
-	}
-
-	return Buffer.concat([msg, Buffer.alloc(pad[0], pad[0])])
+	return Buffer.concat([msg, Buffer.alloc(padLength, padLength)])
 }
 
 export const unpadRandomMax16 = (e: Uint8Array | Buffer) => {
