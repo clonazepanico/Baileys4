@@ -1,0 +1,1 @@
+// Arquivo removido para evitar conflitos de tipos entre Buffer e Uint8Array 

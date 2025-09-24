@@ -1,6 +1,6 @@
 import { AxiosRequestConfig } from 'axios'
 import axios from 'axios'
-import MD5 from 'crypto-js/md5'
+import { MD5 } from 'crypto-js'
 import { Logger } from 'pino'
 import sharp from 'sharp'
 import { WAMediaUploadFunction, WAUrlInfo } from '../Types'
@@ -166,7 +166,7 @@ export const getUrlInfo = async (
 			} else {
 				try {
 					urlInfo.jpegThumbnail = image ? (await getCompressedJpegThumbnail(image, opts)).buffer : undefined
-				} catch (error) {
+				} catch (error: any) {
 					opts.logger?.debug({ err: error.stack, url: previewLink }, 'error in generating thumbnail')
 				}
 			}

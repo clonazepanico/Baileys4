@@ -3,20 +3,36 @@
     "target": "es2018",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "experimentalDecorators": true,
-    "allowJs": false,
-    "checkJs": false,
     "outDir": "lib",
+    "declaration": true,
+    "sourceMap": true,
+    "declarationMap": true,
+    "moduleDetection": "force",
+
+    "lib": ["ES2020", "ESNext.Array", "DOM"],
+    "rootDir": "./src",
+
+    // ESM Features
+    "verbatimModuleSyntax": false,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    // Type Safety
+    "noFallthroughCasesInSwitch": false,
+    "noUncheckedIndexedAccess": false,
+    "forceConsistentCasingInFileNames": false,
     "strict": false,
-    "strictNullChecks": true,
+    "strictNullChecks": false,
     "skipLibCheck": true,
     "noImplicitThis": true,
+    "types": ["node"],
+    // Interop
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "forceConsistentCasingInFileNames": true,
-    "declaration": true,
-    "lib": ["es2020", "esnext.array", "DOM"]
+
+    // DX Boosters
+    "allowJs": true,
+    "checkJs": false
   },
-  "include": ["./src/**/*.ts"],
-  "exclude": ["node_modules", "src/Tests/*", "src/Binary/GenerateStatics.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
 }

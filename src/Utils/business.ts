@@ -3,7 +3,7 @@ import { createHash } from 'crypto'
 import { createWriteStream, promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import {
+import type {
 	CatalogCollection,
 	CatalogStatus,
 	OrderDetails,
@@ -14,7 +14,7 @@ import {
 	WAMediaUpload,
 	WAMediaUploadFunction
 } from '../Types'
-import { BinaryNode, getBinaryNodeChild, getBinaryNodeChildren, getBinaryNodeChildString } from '../WABinary'
+import { type BinaryNode, getBinaryNodeChild, getBinaryNodeChildren, getBinaryNodeChildString } from '../WABinary'
 import { generateMessageIDV2 } from './generics'
 import { getStream, getUrlFromDirectPath } from './messages-media'
 
@@ -84,7 +84,7 @@ export const toProductNode = (productId: string | undefined, product: ProductCre
 		content.push({
 			tag: 'id',
 			attrs: {},
-			content: Buffer.from(productId)
+			content: new Uint8Array(Buffer.from(productId))
 		})
 	}
 
@@ -92,7 +92,7 @@ export const toProductNode = (productId: string | undefined, product: ProductCre
 		content.push({
 			tag: 'name',
 			attrs: {},
-			content: Buffer.from(product.name)
+			content: new Uint8Array(Buffer.from(product.name))
 		})
 	}
 
@@ -100,7 +100,7 @@ export const toProductNode = (productId: string | undefined, product: ProductCre
 		content.push({
 			tag: 'description',
 			attrs: {},
-			content: Buffer.from(product.description)
+			content: new Uint8Array(Buffer.from(product.description))
 		})
 	}
 
@@ -108,7 +108,7 @@ export const toProductNode = (productId: string | undefined, product: ProductCre
 		content.push({
 			tag: 'retailer_id',
 			attrs: {},
-			content: Buffer.from(product.retailerId)
+			content: new Uint8Array(Buffer.from(product.retailerId))
 		})
 	}
 
@@ -128,7 +128,7 @@ export const toProductNode = (productId: string | undefined, product: ProductCre
 						{
 							tag: 'url',
 							attrs: {},
-							content: Buffer.from(img.url.toString())
+							content: new Uint8Array(Buffer.from(img.url.toString()))
 						}
 					]
 				}
@@ -140,7 +140,7 @@ export const toProductNode = (productId: string | undefined, product: ProductCre
 		content.push({
 			tag: 'price',
 			attrs: {},
-			content: Buffer.from(product.price.toString())
+			content: new Uint8Array(Buffer.from(product.price.toString()))
 		})
 	}
 
@@ -148,7 +148,7 @@ export const toProductNode = (productId: string | undefined, product: ProductCre
 		content.push({
 			tag: 'currency',
 			attrs: {},
-			content: Buffer.from(product.currency)
+			content: new Uint8Array(Buffer.from(product.currency))
 		})
 	}
 
@@ -163,7 +163,7 @@ export const toProductNode = (productId: string | undefined, product: ProductCre
 					{
 						tag: 'country_code_origin',
 						attrs: {},
-						content: Buffer.from(product.originCountryCode)
+						content: new Uint8Array(Buffer.from(product.originCountryCode))
 					}
 				]
 			})
