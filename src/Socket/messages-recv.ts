@@ -884,6 +884,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		const msgs: (proto.IMessage | undefined)[] = []
 		for (const id of ids) {
 			let msg: proto.IMessage | undefined
+			let fromMessageRetryManager = false;
 
 			// Try to get from retry cache first if enabled
 			if (messageRetryManager) {
@@ -891,7 +892,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				if (cachedMsg) {
 					msg = cachedMsg.message
 					logger.debug({ jid: remoteJid, id }, 'found message in retry cache')
-
+					fromMessageRetryManager = true;
 					// Mark retry as successful since we found the message
 					messageRetryManager.markRetrySuccess(id)
 				}
@@ -899,8 +900,9 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 			// Fallback to getMessage if not found in cache
 			if (!msg) {
-				msg = await getMessage({ ...key, id })
-				if (msg) {
+				let result = await getMessage({ ...key, id })
+				if (result?.message) {
+					msg = result.message;
 					logger.debug({ jid: remoteJid, id }, 'found message via getMessage')
 					// Also mark as successful if found via getMessage
 					if (messageRetryManager) {
@@ -949,23 +951,12 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 		for (const [i, msg] of msgs.entries()) {
 			if (!ids[i]) continue
-
-			if (msg?.message && (await willSendMessageAgain(ids[i], participant))) {
+			
+			if (msg && (await willSendMessageAgain(ids[i], participant))) {
 				updateSendMessageAgainCount(ids[i], participant)
 				const msgRelayOpts: MessageRelayOptions = { messageId: ids[i] }
-				if(msg.additionalAttributes) {
-					msgRelayOpts.additionalAttributes = msg.additionalAttributes
-				}
 
-				if ((msg as any).message.additionalAttributes) {
-						msgRelayOpts.additionalAttributes = (msg as any).message.additionalAttributes;
-				}
-
-				if(msg.sendToAll === undefined) {
-					msg.sendToAll = sendToAll
-				}
-
-				if(msg.sendToAll) {
+				if(sendToAll) {
 					msgRelayOpts.useUserDevicesCache = false
 				} else {
 					msgRelayOpts.participant = {
@@ -974,7 +965,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					}
 				}
 
-				await relayMessage(key.remoteJid!, msg.message, msgRelayOpts)
+				await relayMessage(key.remoteJid!, msg, msgRelayOpts)
 			} else {
 				logger.debug({ jid: key.remoteJid, id: ids[i] }, 'recv retry request, but message not available')
 			}

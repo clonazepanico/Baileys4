@@ -86,7 +86,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			useClones: false
 		})
 
-	const peerSessionsCache = new NodeCache<boolean>({
+	const peerSessionsCache = new NodeCache({
 		stdTTL: DEFAULT_CACHE_TTLS.USER_DEVICES,
 		useClones: false
 	})
