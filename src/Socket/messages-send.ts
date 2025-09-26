@@ -186,106 +186,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		await sendNode(node)
 	}
 
-	const sendCallOffer = async(jidTo: string, isVideo = false) => {
-		const meId = authState.creds.me!.id
-
-		if(isJidGroup(jidTo)) {
-			return
-		}
-
-		const content: BinaryNode[] = [
-			{ tag: 'audio', attrs: { enc: 'opus', rate: '16000' } },
-			{ tag: 'audio', attrs: { enc: 'opus', rate: '8000' } },
-		]
-
-		if(isVideo) {
-			content.push({
-				tag: 'video',
-				attrs: {
-					orientation: '0',
-					screen_width: '1920',
-					screen_height: '1080',
-					device_orientation: '0',
-					enc: 'vp8',
-					dec: 'vp8',
-				}
-			})
-		}
-
-		content.push({ tag: 'net', attrs: { medium: '3' } })
-		content.push({ tag: 'capability', attrs: { ver: '1' }, content: new Uint8Array([1, 4, 255, 131, 207, 4]) })
-		content.push({ tag: 'encopt', attrs: { keygen: '2' } })
-
-		let call: WACall = { } as WACall
-
-		await authState.keys.transaction(
-			async() => {
-				const devices = await getUSyncDevices([jidTo], false, false)
-				const allJids: string[] = []
-				for(const { user, device } of devices) {
-					const jid = jidEncode(user, 's.whatsapp.net', device)
-					allJids.push(jid)
-				}
-
-				await assertSessions(allJids, true)
-
-				const encKey = randomBytes(32)
-
-				const msg: proto.IMessage = {
-					call: {
-						callKey: new Uint8Array(encKey)
-					}
-				}
-				const { nodes: destinationNodes, shouldIncludeDeviceIdentity } = await createParticipantNodes(allJids, msg, { count: '0' })
-
-				content.push({ tag: 'destination', attrs: {}, content: destinationNodes })
-
-				if(shouldIncludeDeviceIdentity) {
-					content.push({
-						tag: 'device-identity',
-						attrs: { },
-						content: encodeSignedDeviceIdentity(authState.creds.account!, true)
-					})
-
-					logger.debug({ jidTo }, 'adding device identity')
-				}
-
-				const callId = randomBytes(16).toString('hex')
-
-				const stanza: BinaryNode = {
-					tag: 'call',
-					attrs: {
-						to: jidTo,
-					},
-					content: [{
-						tag: 'offer',
-						attrs: {
-							'call-id': callId,
-							'call-creator': meId,
-						},
-						content
-					}]
-				}
-
-				const responseNode = await query(stanza)
-				const userNode = getBinaryNodeChild(responseNode, 'user')
-				const devicesNode = getBinaryNodeChildren(userNode, 'device')
-
-				call = {
-					isVideo,
-					id: callId,
-					devices: devicesNode.map((d) => d.attrs.jid),
-					creatorJid: meId,
-					to: jidTo,
-					from: meId,
-				}
-
-			}
-		)
-
-		return call
-	}
-
 	/** Correctly bulk send receipts to multiple chats, participants */
 	const sendReceipts = async (keys: WAMessageKey[], type: MessageReceiptType) => {
 		const recps = aggregateMessageKeysNotFromMe(keys)
@@ -374,6 +274,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 		if (useCache && userDevicesCache.mget) {
 			const usersToFetch = jidsWithUser.map(j => j?.user).filter(Boolean) as string[]
+			// @ts-ignore
 			mgetDevices = await userDevicesCache.mget(usersToFetch)
 		}
 
@@ -876,7 +777,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 							}
 						}
 
-						await assertSessions(senderKeyMapKeys, false)
+						await assertSessions(senderKeyMapKeys)
 						const result = await createParticipantNodes(senderKeyMapKeys, senderKeyMsg)
 						shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
 						participants.push(...result.nodes)
@@ -1170,7 +1071,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		refreshMediaConn,
 		waUploadToServer,
 		fetchPrivacySettings,
-		sendCallOffer,
 		sendPeerDataOperationMessage,
 		createParticipantNodes,
 		getUSyncDevices,

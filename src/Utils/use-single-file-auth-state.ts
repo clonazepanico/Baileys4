@@ -14,6 +14,8 @@ const KEY_MAP: { [T in keyof SignalDataTypeMap]: string } = {
 	'app-state-sync-key': 'appStateSyncKeys',
 	'app-state-sync-version': 'appStateVersions',
 	'sender-key-memory': 'senderKeyMemory',
+	'lid-mapping': 'lidMapping',
+	'device-list': 'deviceList',
 }
 /**
  * @deprecated use multi file auth state instead please
@@ -60,6 +62,7 @@ export const useSingleFileAuthState = (filename: string, logger?: Logger): { sta
 							let value = keys[key]?.[id]
 							if(value) {
 								if(type === 'app-state-sync-key') {
+									// @ts-ignore
 									value = proto.Message.AppStateSyncKeyData.fromObject(value)
 								}
 
