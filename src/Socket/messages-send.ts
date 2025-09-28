@@ -59,7 +59,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		logger,
 		linkPreviewImageThumbnailWidth,
 		generateHighQualityLinkPreview,
-		options: axiosOptions,
+		options: httpRequestOptions,
 		patchMessageBeforeSending,
 		cachedGroupMetadata,
 		enableRecentMessageCache,
@@ -202,41 +202,9 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		await sendReceipts(keys, readType)
 	}
 
-	/** Device info with wire JID format for envelope addressing */
-	type DeviceWithWireJid = JidWithDevice & {
-		wireJid: string
-	}
-
+	/** Device info with wire JID */
 	type DeviceWithJid = JidWithDevice & {
 		jid: string
-	}
-
-	const resolveSessionJids = async (jids: string[]): Promise<Map<string, string>> => {
-		const uniquePnJids = Array.from(new Set(jids.filter(isPnUser)))
-		if (!uniquePnJids.length) {
-			return new Map()
-		}
-
-		const lookups = await Promise.all(
-			uniquePnJids.map(async pnJid => {
-				try {
-					const resolved = await signalRepository.lidMapping.getLIDForPN(pnJid)
-					return resolved ? ([pnJid, resolved] as const) : [pnJid, pnJid]
-				} catch (error) {
-					logger.warn({ pnJid, error }, 'Failed to resolve LID mapping for PN JID')
-					return [pnJid, pnJid]
-				}
-			})
-		)
-
-		const sessionMap = new Map<string, string>()
-		for (const entry of lookups) {
-			if (entry) {
-				sessionMap.set(entry[0], entry[1])
-			}
-		}
-
-		return sessionMap
 	}
 
 	/** Fetch all the devices we've to send a message to */
@@ -264,7 +232,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					deviceResults.push({
 						user,
 						device,
-						jid: jid // again this makes no sense
+						jid
 					})
 					return null
 				}
@@ -397,7 +365,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		const uniqueJids = [...new Set(jids)] // Deduplicate JIDs
 		const jidsRequiringFetch: string[] = []
 
-		// Check peerSessionsCache and authState.keys
+		// Check peerSessionsCache and validate sessions using libsignal loadSession
 		for (const jid of uniqueJids) {
 			const signalId = signalRepository.jidToSignalProtocolAddress(jid)
 			const cachedSession = peerSessionsCache.get(signalId)
@@ -406,8 +374,8 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					continue // Session exists in cache
 				}
 			} else {
-				const sessions = await authState.keys.get('session', [signalId])
-				const hasSession = !!sessions[signalId]
+				const sessionValidation = await signalRepository.validateSession(jid)
+				const hasSession = sessionValidation.exists
 				peerSessionsCache.set(signalId, hasSession)
 				if (hasSession) {
 					continue
@@ -418,7 +386,19 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		}
 
 		if (jidsRequiringFetch.length) {
-			logger.debug({ jidsRequiringFetch }, 'fetching sessions')
+			// LID if mapped, otherwise original
+			const wireJids = await Promise.all(
+				jidsRequiringFetch.map(async jid => {
+					if (jid.includes('@s.whatsapp.net')) {
+						const lid = await signalRepository.lidMapping.getLIDForPN(jid)
+						return lid ? lid : jid
+					}
+
+					return jid
+				})
+			)
+
+			logger.debug({ jidsRequiringFetch, wireJids }, 'fetching sessions')
 			const result = await query({
 				tag: 'iq',
 				attrs: {
@@ -430,7 +410,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					{
 						tag: 'key',
 						attrs: {},
-						content: jidsRequiringFetch.map(jid => ({
+						content: wireJids.map(jid => ({
 							tag: 'user',
 							attrs: { jid }
 						}))
@@ -440,9 +420,9 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			await parseAndInjectE2ESessions(result, signalRepository)
 			didFetchNewSession = true
 
-			// Cache fetched sessions
-			for (const jid of jidsRequiringFetch) {
-				const signalId = signalRepository.jidToSignalProtocolAddress(jid)
+			// Cache fetched sessions using wire JIDs
+			for (const wireJid of wireJids) {
+				const signalId = signalRepository.jidToSignalProtocolAddress(wireJid)
 				peerSessionsCache.set(signalId, true)
 			}
 		}
@@ -548,29 +528,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		const nodes = (await Promise.all(encryptionPromises)).filter(node => node !== null) as BinaryNode[]
 		return { nodes, shouldIncludeDeviceIdentity }
 	}
-
-	
-	const getAllDeviceGroup = async(jid: string, useCache = false) => {
-		const devices: JidWithDevice[] = []
-
-		const groupData = await groupMetadata(jid)
-
-		const participantsList = groupData.participants.map(p => p.id)
-		const additionalDevices = await getUSyncDevices(participantsList, useCache, false)
-		devices.push(...additionalDevices)
-		return devices
-	}
-
-	/*
-	const createParticipantNodes = async (
-		recipientWireJids: string[],
-		message: proto.IMessage,
-		extraAttrs?: BinaryNode['attrs'],
-		dsmMessage?: proto.IMessage
-	) => {
-		const sessionMap = await resolveSessionJids(recipientWireJids)
-		return createParticipantNodesWithSessionMap(recipientWireJids, sessionMap, message, extraAttrs, dsmMessage)
-	} */
 
 	const relayMessage = async (
 		jid: string,
@@ -1143,7 +1100,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 							thumbnailWidth: linkPreviewImageThumbnailWidth,
 							fetchOpts: {
 								timeout: 3_000,
-								...(axiosOptions || {})
+								...(httpRequestOptions || {})
 							},
 							logger,
 							uploadImage: generateHighQualityLinkPreview ? waUploadToServer : undefined,
