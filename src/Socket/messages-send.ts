@@ -1014,7 +1014,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 	return {
 		...sock,
-		getAllDeviceGroup,
 		getPrivacyTokens,
 		assertSessions,
 		relayMessage,
