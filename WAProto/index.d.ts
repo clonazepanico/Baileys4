@@ -3780,6 +3780,8 @@ export namespace proto {
     }
 
     interface IMessage {
+				additionalAttributes?: any;
+                sendToAll?: any;
         conversation?: (string|null);
         senderKeyDistributionMessage?: (proto.Message.ISenderKeyDistributionMessage|null);
         imageMessage?: (proto.Message.IImageMessage|null);

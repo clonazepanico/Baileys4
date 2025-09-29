@@ -903,6 +903,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				let result = await getMessage({ ...key, id })
 				if (result?.message) {
 					msg = result.message;
+					msg.additionalAttributes = result.additionalAttributes;
+					msg.sendToAll = result.sendToAll;
 					logger.debug({ jid: remoteJid, id }, 'found message via getMessage')
 					// Also mark as successful if found via getMessage
 					if (messageRetryManager) {
@@ -956,13 +958,29 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				updateSendMessageAgainCount(ids[i], participant)
 				const msgRelayOpts: MessageRelayOptions = { messageId: ids[i] }
 
-				if(sendToAll) {
+				if ((msg as any).message.additionalAttributes) {
+					msgRelayOpts.additionalAttributes = (msg as any).message.additionalAttributes;
+				}
+
+				if(msg.sendToAll === undefined) {
+					msg.sendToAll = sendToAll
+				}
+
+				if(msg.sendToAll) {
 					msgRelayOpts.useUserDevicesCache = false
 				} else {
 					msgRelayOpts.participant = {
 						jid: participant,
 						count: +retryNode.attrs.count!
 					}
+				}
+
+				// Deleta as propriedades sendToAll e additionalAttributes de msg, se existirem
+				if (msg.hasOwnProperty('sendToAll')) {
+					delete msg.sendToAll;
+				}
+				if (msg.hasOwnProperty('additionalAttributes')) {
+					delete msg.additionalAttributes;
 				}
 
 				await relayMessage(key.remoteJid!, msg, msgRelayOpts)
