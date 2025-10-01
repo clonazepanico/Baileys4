@@ -958,8 +958,8 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				updateSendMessageAgainCount(ids[i], participant)
 				const msgRelayOpts: MessageRelayOptions = { messageId: ids[i] }
 
-				if ((msg as any).message.additionalAttributes) {
-					msgRelayOpts.additionalAttributes = (msg as any).message.additionalAttributes;
+				if ((msg as any)?.additionalAttributes) {
+					msgRelayOpts.additionalAttributes = (msg as any)?.additionalAttributes;
 				}
 
 				if(msg.sendToAll === undefined) {
