@@ -46,7 +46,7 @@ export type URLGenerationOptions = {
 		/** Timeout in ms */
 		timeout: number
 		proxyUrl?: string
-		headers?: AxiosRequestConfig<{}>['headers']
+		headers?: HeadersInit
 	}
 	myCache?: any;
   sendThumbnail?: boolean;
