@@ -2,9 +2,9 @@ import type { Agent } from 'https'
 import type { URL } from 'url'
 import { proto } from '../../WAProto/index.js'
 import type { ILogger } from '../Utils/logger'
-import type { AuthenticationState, SignalAuthState, TransactionCapabilityOptions } from './Auth'
+import type { AuthenticationState, LIDMapping, SignalAuthState, TransactionCapabilityOptions } from './Auth'
 import type { GroupMetadata } from './GroupMetadata'
-import { type MediaConnInfo } from './Message'
+import { type MediaConnInfo, type WAMessageKey } from './Message'
 import type { SignalRepositoryWithLIDStore } from './Signal'
 
 export type WAVersion = [number, number, number]
@@ -146,7 +146,8 @@ export type SocketConfig = {
 	 * implement this so that messages failed to send
 	 * (solves the "this message can take a while" issue) can be retried
 	 * */
-	getMessage: (key: proto.IMessageKey) => Promise<RetryMessage | undefined>
+	//getMessage: (key: proto.IMessageKey) => Promise<RetryMessage | undefined>
+	getMessage: (key: WAMessageKey) => Promise<RetryMessage | undefined>
 
 	/** Socket passthrough */
 	socket?: any
@@ -158,13 +159,6 @@ export type SocketConfig = {
 	makeSignalRepository: (
 		auth: SignalAuthState,
 		logger: ILogger,
-		onWhatsAppFunc?: (...jids: string[]) => Promise<
-			| {
-					jid: string
-					exists: boolean
-					lid: string
-			  }[]
-			| undefined
-		>
+		pnToLIDFunc?: (jids: string[]) => Promise<LIDMapping[] | undefined>
 	) => SignalRepositoryWithLIDStore
 }

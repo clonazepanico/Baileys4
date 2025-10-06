@@ -8,7 +8,7 @@ import type { CacheStore } from './Socket'
 
 // export the WAMessage Prototypes
 export { proto as WAProto }
-export type WAMessage = proto.IWebMessageInfo & { key: WAMessageKey }
+export type WAMessage = proto.IWebMessageInfo & { key: WAMessageKey; messageStubParameters?: any }
 export type WAMessageContent = proto.IMessage
 export type WAContactMessage = proto.Message.IContactMessage
 export type WAContactsArrayMessage = proto.Message.IContactsArrayMessage
@@ -387,11 +387,11 @@ export type MessageUpsertType = 'append' | 'notify'
 
 export type MessageUserReceipt = proto.IUserReceipt
 
-export type WAMessageUpdate = { update: Partial<WAMessage>; key: proto.IMessageKey }
+export type WAMessageUpdate = { update: Partial<WAMessage>; key: WAMessageKey }
 
 export type WAMessageCursor = { before: WAMessageKey | undefined } | { after: WAMessageKey | undefined }
 
-export type MessageUserReceiptUpdate = { key: proto.IMessageKey; receipt: MessageUserReceipt }
+export type MessageUserReceiptUpdate = { key: WAMessageKey; receipt: MessageUserReceipt }
 
 export type MessageUserPendingUpdate = { key: proto.IMessageKey, devices: JidWithDevice[] }
 
@@ -401,4 +401,4 @@ export type MediaDecryptionKeyInfo = {
 	macKey?: Buffer
 }
 
-export type MinimalMessage = Pick<proto.IWebMessageInfo, 'key' | 'messageTimestamp'>
+export type MinimalMessage = Pick<WAMessage, 'key' | 'messageTimestamp'>
