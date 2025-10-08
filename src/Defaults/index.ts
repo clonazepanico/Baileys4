@@ -72,10 +72,10 @@ export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
 		patch: false,
 		snapshot: false
 	},
-	getMessage: async() => undefined,
 	sendMessagesAgainDelayMs: 250,
-	cachedGroupMetadata: async() => undefined,
-	countryCode: 'US',
+	countryCode: 'GB',
+	getMessage: async () => undefined,
+	cachedGroupMetadata: async () => undefined,
 	makeSignalRepository: makeLibSignalRepository
 }
 

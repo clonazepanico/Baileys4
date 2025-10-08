@@ -6,7 +6,6 @@ import { proto } from '../../WAProto/index.js'
 import { DEFAULT_CACHE_TTLS, KEY_BUNDLE_TYPE, MIN_PREKEY_COUNT } from '../Defaults'
 import type {
 	GroupParticipant,
-	LIDMapping,
 	MessageReceiptType,
 	MessageRelayOptions,
 	MessageUserReceipt,
@@ -629,7 +628,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					msg.messageStubType = WAMessageStubType.GROUP_PARTICIPANT_LEAVE
 				}
 
-				msg.messageStubParameters = participants
+				msg.messageStubParameters = participants.map(a => JSON.stringify(a))
 				break
 			case 'subject':
 				msg.messageStubType = WAMessageStubType.GROUP_CHANGE_SUBJECT
@@ -673,7 +672,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			case 'created_membership_requests':
 				msg.messageStubType = WAMessageStubType.GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD
 				msg.messageStubParameters = [
-					{ lid: affectedParticipantLid, pn: affectedParticipantPn } as LIDMapping,
+					JSON.stringify({ lid: affectedParticipantLid, pn: affectedParticipantPn }),
 					'created',
 					child.attrs.request_method!
 				]
@@ -683,7 +682,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				// TODO: LIDMAPPING SUPPORT
 				msg.messageStubType = WAMessageStubType.GROUP_MEMBERSHIP_JOIN_APPROVAL_REQUEST_NON_ADMIN_ADD
 				msg.messageStubParameters = [
-					{ lid: affectedParticipantLid, pn: affectedParticipantPn } as LIDMapping,
+					JSON.stringify({ lid: affectedParticipantLid, pn: affectedParticipantPn }),
 					isDenied ? 'revoked' : 'rejected'
 				]
 				break
