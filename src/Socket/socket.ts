@@ -784,7 +784,7 @@ export const makeSocket = (config: SocketConfig) => {
 			content: [
 				{
 					tag: 'add',
-					attrs: {},
+					attrs: { t: Math.round(Date.now() / 1000) + '' },
 					content: wamBuffer
 				}
 			]
