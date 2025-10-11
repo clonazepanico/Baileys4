@@ -1,9 +1,7 @@
 import NodeCache from '@cacheable/node-cache'
 import { Boom } from '@hapi/boom'
-import { randomBytes } from 'crypto'
-import { proto } from '../../WAProto'
+import { proto } from '../../WAProto/index.js'
 import { DEFAULT_CACHE_TTLS, WA_DEFAULT_EPHEMERAL } from '../Defaults'
-import type { WACall } from '../Types'
 import type {
 	AnyMessageContent,
 	MediaConnInfo,
@@ -87,7 +85,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 	const userDevicesCache =
 		config.userDevicesCache ||
 		new NodeCache({
-			stdTTL: DEFAULT_CACHE_TTLS.USER_DEVICES, // 5 minutos
+			stdTTL: DEFAULT_CACHE_TTLS.USER_DEVICES, // 5 minutes
 			useClones: false
 		})
 
@@ -251,7 +249,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 		if (useCache && userDevicesCache.mget) {
 			const usersToFetch = jidsWithUser.map(j => j?.user).filter(Boolean) as string[]
-			// @ts-ignore
+			//@ts-ignore
 			mgetDevices = await userDevicesCache.mget(usersToFetch)
 		}
 
@@ -742,21 +740,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 					participants.push(...result.nodes)
 				}
-/*
-				if(Object.keys(senderKeyMap).length && force_send === true) {
-						const senderKeyMapKeys = Object.keys(senderKeyMap)
-						const senderKeyMsg = {
-							senderKeyDistributionMessage: {
-								axolotlSenderKeyDistributionMessage: senderKeyDistributionMessage,
-								groupId: destinationJid
-							}
-						}
-
-						await assertSessions(senderKeyMapKeys)
-						const result = await createParticipantNodes(senderKeyMapKeys, senderKeyMsg)
-						shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity
-						participants.push(...result.nodes)
-				} */
 
 				if (isRetryResend) {
 					const { type, ciphertext: encryptedContent } = await signalRepository.encryptMessage({
@@ -836,9 +819,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 							'Device enumeration complete with unified addressing'
 						)
 					}
-
-					const additionalDevices = await getUSyncDevices([ meId, jid ], !!useUserDevicesCache, true)
-					devices.push(...additionalDevices)
 				}
 
 				const allRecipients: string[] = []
@@ -1179,6 +1159,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					} as BinaryNode)
 				}
 
+
 				if(options?.custom_message_handler) {
 					options?.custom_message_handler.addMessage(fullMsg)
 				}
@@ -1188,7 +1169,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				if (options?.force_send) {
 					forceSend = true
 				}
-				
+
 				await relayMessage(jid, fullMsg.message!, {
 					messageId: fullMsg.key.id!,
 					useCachedGroupMetadata: options.useCachedGroupMetadata,
@@ -1196,6 +1177,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					statusJidList: options.statusJidList,
 					additionalNodes,
 					force_send: forceSend,
+
 				})
 				if (config.emitOwnEvents) {
 					process.nextTick(() => {
