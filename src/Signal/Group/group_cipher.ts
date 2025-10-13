@@ -8,6 +8,7 @@ export interface SenderKeyStore {
 	loadSenderKey(senderKeyName: SenderKeyName): Promise<SenderKeyRecord>
 
 	storeSenderKey(senderKeyName: SenderKeyName, record: SenderKeyRecord): Promise<void>
+	saveIdentity(addr: string, identityKey: any): Promise<void>
 }
 
 export class GroupCipher {
