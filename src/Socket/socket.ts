@@ -424,7 +424,7 @@ export const makeSocket = (config: SocketConfig) => {
 	let lastUploadTime = 0
 
 	/** generates and uploads a set of pre-keys to the server */
-	const uploadPreKeys = async (count = INITIAL_PREKEY_COUNT, retryCount = 0) => {
+	const uploadPreKeys = async (count = MIN_PREKEY_COUNT, retryCount = 0) => {
 		// Check minimum interval (except for retries)
 		if (retryCount === 0) {
 			const timeSinceLastUpload = Date.now() - lastUploadTime
@@ -437,7 +437,7 @@ export const makeSocket = (config: SocketConfig) => {
 		// Prevent multiple concurrent uploads
 		if (uploadPreKeysPromise) {
 			logger.debug('Pre-key upload already in progress, waiting for completion')
-			return uploadPreKeysPromise
+			await uploadPreKeysPromise
 		}
 
 		const uploadLogic = async () => {
@@ -458,7 +458,7 @@ export const makeSocket = (config: SocketConfig) => {
 				logger.info({ count }, 'uploaded pre-keys successfully')
 				lastUploadTime = Date.now()
 			} catch (uploadError) {
-				logger.error({ uploadError, count }, 'Failed to upload pre-keys to server')
+				logger.error({ uploadError: (uploadError as Error).toString(), count }, 'Failed to upload pre-keys to server')
 
 				// Exponential backoff retry (max 3 retries)
 				if (retryCount < 3) {
@@ -501,13 +501,16 @@ export const makeSocket = (config: SocketConfig) => {
 
 	const uploadPreKeysToServerIfRequired = async () => {
 		try {
+			let count = 0
 			const preKeyCount = await getAvailablePreKeysOnServer()
+			if (preKeyCount == 0) count = INITIAL_PREKEY_COUNT
+			else count = MIN_PREKEY_COUNT
 			const { exists: currentPreKeyExists, currentPreKeyId } = await verifyCurrentPreKeyExists()
 
 			logger.info(`${preKeyCount} pre-keys found on server`)
 			logger.info(`Current prekey ID: ${currentPreKeyId}, exists in storage: ${currentPreKeyExists}`)
 
-			const lowServerCount = preKeyCount <= MIN_PREKEY_COUNT
+			const lowServerCount = preKeyCount <= count
 			const missingCurrentPreKey = !currentPreKeyExists && currentPreKeyId > 0
 
 			const shouldUpload = lowServerCount || missingCurrentPreKey
@@ -518,7 +521,7 @@ export const makeSocket = (config: SocketConfig) => {
 				if (missingCurrentPreKey) reasons.push(`current prekey ${currentPreKeyId} missing from storage`)
 
 				logger.info(`Uploading PreKeys due to: ${reasons.join(', ')}`)
-				await uploadPreKeys()
+				await uploadPreKeys(count)
 			} else {
 				logger.info(`PreKey validation passed - Server: ${preKeyCount}, Current prekey ${currentPreKeyId} exists`)
 			}
