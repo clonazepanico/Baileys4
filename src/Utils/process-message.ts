@@ -471,11 +471,11 @@ const processMessage = async (
 		// TODO: make standalone, remove getMessage reference
 		// TODO: Remove entirely
 		const pollMsg = await getMessage(creationMsgKey)
-		if(pollMsg?.message) {
+		if(pollMsg) {
 			const meIdNormalised = jidNormalizedUser(meId)
 			const pollCreatorJid = getKeyAuthor(creationMsgKey, meIdNormalised)
 			const voterJid = getKeyAuthor(message.key, meIdNormalised)
-			const pollEncKey = pollMsg.message.messageContextInfo?.messageSecret!
+			const pollEncKey = pollMsg.messageContextInfo?.messageSecret!
 
 			try {
 				const voteMsg = decryptPollVote(

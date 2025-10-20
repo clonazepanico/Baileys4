@@ -559,9 +559,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			additionalNodes,
 			useUserDevicesCache,
 			useCachedGroupMetadata,
-			statusJidList,
-			force_send = false,
-			useToOnlyNormalizeGroupSessions = false
+			statusJidList
 		}: MessageRelayOptions
 	) => {
 		const meId = authState.creds.me!.id
@@ -929,9 +927,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			if (additionalNodes && additionalNodes.length > 0) {
 				;(stanza.content as BinaryNode[]).push(...additionalNodes)
 			}
-			if(useToOnlyNormalizeGroupSessions) {
-				return msgId
-			}
+
 			logger.debug({ msgId }, `sending message to ${participants.length} devices`)
 
 			await sendNode(stanza)

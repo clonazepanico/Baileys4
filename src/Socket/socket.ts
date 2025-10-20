@@ -113,7 +113,6 @@ export const makeSocket = (config: SocketConfig) => {
 			throw new Boom('Connection Closed', { statusCode: DisconnectReason.connectionClosed })
 		}
 
-		logger.debug({ data_length: data.length }, 'encode frame')
 		const bytes = noise.encodeFrame(data)
 		await promiseTimeout<void>(connectTimeoutMs, async (resolve, reject) => {
 			try {
@@ -582,7 +581,6 @@ export const makeSocket = (config: SocketConfig) => {
 		clearInterval(keepAliveReq)
 		clearTimeout(qrTimer)
 
-
 		ws.removeAllListeners('close')
 		ws.removeAllListeners('open')
 		ws.removeAllListeners('message')
@@ -642,22 +640,15 @@ export const makeSocket = (config: SocketConfig) => {
 				end(new Boom('Connection was lost', { statusCode: DisconnectReason.connectionLost }))
 			} else if (ws.isOpen) {
 				// if its all good, send a keep alive request
-				logger.debug({ lastDateRecv, keepAliveIntervalMs }, 'ping server')
-				query(
-					{
-						tag: 'iq',
-						attrs: {
-							id: generateMessageTag(),
-							to: S_WHATSAPP_NET,
-							type: 'get',
-							xmlns: 'w:p',
-						},
-						content: [{ tag: 'ping', attrs: {} }]
-					}
-				).then((frame) => {
-					logger.debug({ frame, lastDateRecv }, 'pong server')
-					// redundant but apparently necessary line.
-					lastDateRecv = new Date()
+				query({
+					tag: 'iq',
+					attrs: {
+						id: generateMessageTag(),
+						to: S_WHATSAPP_NET,
+						type: 'get',
+						xmlns: 'w:p'
+					},
+					content: [{ tag: 'ping', attrs: {} }]
 				}).catch(err => {
 					logger.error({ trace: err.stack }, 'error in sending keep alive')
 				})
@@ -974,7 +965,7 @@ export const makeSocket = (config: SocketConfig) => {
 			logger.trace('flushed events for initial buffer')
 		}
 
-		ev.emit('connection.update', { receivedPendingNotifications: true, offline_notifications: 0 })
+		ev.emit('connection.update', { receivedPendingNotifications: true })
 	})
 
 	// update credentials when required
