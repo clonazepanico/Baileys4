@@ -424,7 +424,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					{
 						tag: 'key',
 						attrs: {},
-						content: wireJids.map(jid => ({
+						content: jidsRequiringFetch.map(jid => ({
 							tag: 'user',
 							attrs: { jid }
 						}))
@@ -435,7 +435,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			didFetchNewSession = true
 
 			// Cache fetched sessions using wire JIDs
-			for (const wireJid of wireJids) {
+			for (const wireJid of jidsRequiringFetch) {
 				const signalId = signalRepository.jidToSignalProtocolAddress(wireJid)
 				peerSessionsCache.set(signalId, true)
 			}
