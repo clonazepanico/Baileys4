@@ -672,8 +672,19 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 						// default to LID based groups
 						let groupAddressingMode = 'lid'
 						if (groupData) {
-							participantsList.push(...groupData.participants.map(p => p.id))
 							groupAddressingMode = groupData?.addressingMode || groupAddressingMode
+							if (groupAddressingMode === 'lid') {
+								participantsList.push(...groupData.participants.map((p) => {
+									if (p.lid && isLidUser(p.lid)) {
+										return p.lid
+									}
+									return p.id
+								}))
+							} else {
+								participantsList.push(...groupData.participants.map((p) => {
+									return p.id
+								}))
+							}
 						}
 
 						// default to lid addressing mode in a group
