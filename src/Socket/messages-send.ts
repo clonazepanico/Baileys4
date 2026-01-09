@@ -465,7 +465,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					{
 						tag: 'key',
 						attrs: {},
-						content: wireJids.map(jid => {
+						content: jidsRequiringFetch.map(jid => {
 							const attrs: { [key: string]: string } = { jid }
 							if (force) attrs.reason = 'identity'
 							return { tag: 'user', attrs }
