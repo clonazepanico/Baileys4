@@ -6,7 +6,6 @@ import makeWASocket, { AnyMessageContent, BinaryInfo, CacheStore, delay, Disconn
 import open from 'open'
 import fs from 'fs'
 import P from 'pino'
-import { WAMHandler } from './wam'
 
 const logger = P({
   level: "trace",
@@ -64,8 +63,6 @@ const startSock = async() => {
 		getMessage
 	})
 
-
-	const wam = new WAMHandler(sock, state)
 
 	// Pairing code for Web clients
 	if (usePairingCode && !sock.authState.creds.registered) {
@@ -226,12 +223,9 @@ const startSock = async() => {
 			if(events['chats.delete']) {
 				console.log('chats deleted ', events['chats.delete'])
 			}
-			
-			if (events['configuration.set']) {
-				console.log('configuration initial ', events['configuration.set']);
-			}
-			if (events['configuration.update']) {
-				console.log('configuration updated', events['configuration.update']);
+
+			if(events['group.member-tag.update']) {
+				console.log('group member tag update', JSON.stringify(events['group.member-tag.update'], undefined, 2))
 			}
 		}
 	)
