@@ -40,6 +40,7 @@ import {
 	getRawMediaUploadData,
 	type MediaDownloadOptions
 } from './messages-media'
+import { shouldIncludeReportingToken } from './reporting-utils'
 
 type MediaUploadData = {
 	media: WAMediaUpload
@@ -657,6 +658,13 @@ export const generateWAMessageContent = async (
 		}
 	}
 
+	if (shouldIncludeReportingToken(m)) {
+		m.messageContextInfo = m.messageContextInfo || {}
+		if (!m.messageContextInfo.messageSecret) {
+			m.messageContextInfo.messageSecret = randomBytes(32)
+		}
+	}
+
 	return WAProto.Message.create(m)
 }
 
@@ -887,6 +895,19 @@ export const updateMessageWithPollUpdate = (msg: Pick<WAMessage, 'pollUpdates'>,
 	msg.pollUpdates = reactions
 }
 
+/** Update the message with a new event response */
+export const updateMessageWithEventResponse = (
+	msg: Pick<WAMessage, 'eventResponses'>,
+	update: proto.IEventResponse
+) => {
+	const authorID = getKeyAuthor(update.eventResponseMessageKey)
+
+	const responses = (msg.eventResponses || []).filter(r => getKeyAuthor(r.eventResponseMessageKey) !== authorID)
+	responses.push(update)
+
+	msg.eventResponses = responses
+}
+
 type VoteAggregation = {
 	name: string
 	voters: string[]
@@ -941,6 +962,41 @@ export function getAggregateVotesInPollMessage(
 	}
 
 	return Object.values(voteHashMap)
+}
+
+type ResponseAggregation = {
+	response: string
+	responders: string[]
+}
+
+/**
+ * Aggregates all event responses in an event message.
+ * @param msg the event creation message
+ * @param meId your jid
+ * @returns A list of response types & their responders
+ */
+export function getAggregateResponsesInEventMessage(
+	{ eventResponses }: Pick<WAMessage, 'eventResponses'>,
+	meId?: string
+) {
+	const responseTypes = ['GOING', 'NOT_GOING', 'MAYBE']
+	const responseMap: { [_: string]: ResponseAggregation } = {}
+
+	for (const type of responseTypes) {
+		responseMap[type] = {
+			response: type,
+			responders: []
+		}
+	}
+
+	for (const update of eventResponses || []) {
+		const responseType = (update as any).eventResponse || 'UNKNOWN'
+		if (responseType !== 'UNKNOWN' && responseMap[responseType]) {
+			responseMap[responseType].responders.push(getKeyAuthor(update.eventResponseMessageKey, meId))
+		}
+	}
+
+	return Object.values(responseMap)
 }
 
 /** Given a list of message keys, aggregates them by chat & sender. Useful for sending read receipts in bulk */
