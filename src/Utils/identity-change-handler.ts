@@ -19,7 +19,7 @@ export type IdentityChangeContext = {
 	meLid: string | undefined
 	validateSession: (jid: string) => Promise<{ exists: boolean; reason?: string }>
 	assertSessions: (jids: string[], force?: boolean) => Promise<boolean>
-	debounceCache: NodeCache<boolean>
+	debounceCache: NodeCache
 	logger: ILogger
 }
 

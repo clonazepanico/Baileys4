@@ -521,8 +521,9 @@ function signalStorage(
 				pubKey: Buffer.from(generateSignalPubKey(signedIdentityKey.public))
 			}
 		},
+		/*
 		saveIdentity: async (addr: string, identityKey: any) => {
 			await keys.set({ 'identity-key': { [addr.toString()]: identityKey } });
-		},
+		}, */
 	}
 }
