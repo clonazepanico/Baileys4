@@ -1,6 +1,6 @@
-import { JidWithDevice } from '../WABinary'
+import { JidWithDevice } from '../WABinary/index.js'
 import { proto } from '../../WAProto/index.js'
-import type { LIDMappingStore } from '../Signal/lid-mapping'
+import type { LIDMappingStore } from '../Signal/lid-mapping.js'
 
 type DecryptGroupSignalOpts = {
 	group: string

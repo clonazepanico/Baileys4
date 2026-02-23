@@ -11,7 +11,7 @@ import makeWASocket, {
 	toBuffer,
 	useMultiFileAuthState,
 	type WAMessage
-} from '../../index'
+} from '../../index.js'
 
 jest.setTimeout(30_000)
 

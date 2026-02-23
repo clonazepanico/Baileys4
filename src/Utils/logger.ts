@@ -1,4 +1,4 @@
-import P from 'pino'
+import pino from 'pino'
 
 export interface ILogger {
 	level: string
@@ -10,4 +10,4 @@ export interface ILogger {
 	error(obj: unknown, msg?: string): void
 }
 
-export default P({ timestamp: () => `,"time":"${new Date().toJSON()}"` })
+export default (pino as any)({ timestamp: () => `,"time":"${new Date().toJSON()}"` })

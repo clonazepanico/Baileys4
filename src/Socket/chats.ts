@@ -1,7 +1,7 @@
 import NodeCache from '@cacheable/node-cache'
 import { Boom } from '@hapi/boom'
 import { proto } from '../../WAProto/index.js'
-import { DEFAULT_CACHE_TTLS, PROCESSABLE_HISTORY_TYPES } from '../Defaults'
+import { DEFAULT_CACHE_TTLS, PROCESSABLE_HISTORY_TYPES } from '../Defaults/index.js'
 import type {
 	BotListInfo,
 	CacheStore,
@@ -24,11 +24,11 @@ import type {
 	WAPrivacyOnlineValue,
 	WAPrivacyValue,
 	WAReadReceiptsValue
-} from '../Types'
-import { ALL_WA_PATCH_NAMES } from '../Types'
+} from '../Types/index.js'
+import { ALL_WA_PATCH_NAMES } from '../Types/index.js'
 import type { QuickReplyAction } from '../Types/Bussines.js'
-import type { LabelActionBody } from '../Types/Label'
-import { SyncState } from '../Types/State'
+import type { LabelActionBody } from '../Types/Label.js'
+import { SyncState } from '../Types/State.js'
 import {
 	chatModificationToAppPatch,
 	type ChatMutationMap,
@@ -40,10 +40,10 @@ import {
 	getHistoryMsg,
 	newLTHashState,
 	processSyncAction
-} from '../Utils'
-import { makeMutex } from '../Utils/make-mutex'
-import processMessage from '../Utils/process-message'
-import { buildTcTokenFromJid } from '../Utils/tc-token-utils'
+} from '../Utils/index.js'
+import { makeMutex } from '../Utils/make-mutex.js'
+import processMessage from '../Utils/process-message.js'
+import { buildTcTokenFromJid } from '../Utils/tc-token-utils.js'
 import {
 	type BinaryNode,
 	getBinaryNodeChild,
@@ -52,8 +52,8 @@ import {
 	jidNormalizedUser,
 	reduceBinaryNodeToDictionary,
 	S_WHATSAPP_NET
-} from '../WABinary'
-import { USyncQuery, USyncUser } from '../WAUSync'
+} from '../WABinary/index.js'
+import { USyncQuery, USyncUser } from '../WAUSync/index.js'
 import { makeSocket } from './socket.js'
 const MAX_SYNC_ATTEMPTS = 2
 

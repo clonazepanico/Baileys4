@@ -1,12 +1,13 @@
 import { AxiosRequestConfig } from 'axios'
 import axios from 'axios'
-import { MD5 } from 'crypto-js'
+import CryptoJS from 'crypto-js'
+const { MD5 } = CryptoJS
 import { Logger } from 'pino'
 import sharp from 'sharp'
-import { WAMediaUploadFunction, WAUrlInfo } from '../Types'
-import { ILogger } from './logger'
-import { prepareWAMessageMedia } from './messages'
-import { extractImageThumb, getHttpStream } from './messages-media'
+import { WAMediaUploadFunction, WAUrlInfo } from '../Types/index.js'
+import { ILogger } from './logger.js'
+import { prepareWAMessageMedia } from './messages.js'
+import { extractImageThumb, getHttpStream } from './messages-media.js'
 const THUMBNAIL_WIDTH_PX = 192
 let previewLink: any
 

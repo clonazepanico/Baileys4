@@ -1,4 +1,4 @@
-import { BufferJSON } from '../../Utils/generics'
+import { BufferJSON } from '../../Utils/generics.js'
 
 describe('BufferJSON', () => {
 	const originalObject = {

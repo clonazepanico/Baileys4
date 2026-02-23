@@ -1,8 +1,8 @@
 import { jest } from '@jest/globals'
-import { proto, type WAMessage } from '../..'
-import { DEFAULT_CONNECTION_CONFIG } from '../../Defaults'
-import makeWASocket from '../../Socket'
-import { makeSession, mockWebSocket } from '../TestUtils/session'
+import { proto, type WAMessage } from '../...js'
+import { DEFAULT_CONNECTION_CONFIG } from '../../Defaults/index.js'
+import makeWASocket from '../../Socket.js'
+import { makeSession, mockWebSocket } from '../TestUtils/session.js'
 
 mockWebSocket()
 

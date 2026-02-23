@@ -1,11 +1,11 @@
 import type { Agent } from 'https'
 import type { URL } from 'url'
 import { proto } from '../../WAProto/index.js'
-import type { ILogger } from '../Utils/logger'
-import type { AuthenticationState, LIDMapping, SignalAuthState, TransactionCapabilityOptions } from './Auth'
-import type { GroupMetadata } from './GroupMetadata'
-import { type MediaConnInfo, type WAMessageKey } from './Message'
-import type { SignalRepositoryWithLIDStore } from './Signal'
+import type { ILogger } from '../Utils/logger.js'
+import type { AuthenticationState, LIDMapping, SignalAuthState, TransactionCapabilityOptions } from './Auth.js'
+import type { GroupMetadata } from './GroupMetadata.js'
+import { type MediaConnInfo, type WAMessageKey } from './Message.js'
+import type { SignalRepositoryWithLIDStore } from './Signal.js'
 
 export type WAVersion = [number, number, number]
 export type WABrowserDescription = [string, string, string]

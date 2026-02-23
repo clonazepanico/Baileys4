@@ -1,7 +1,7 @@
 import NodeCache from '@cacheable/node-cache'
-import { areJidsSameUser, type BinaryNode, getBinaryNodeChild, jidDecode } from '../WABinary'
-import { isStringNullOrEmpty } from './generics'
-import type { ILogger } from './logger'
+import { areJidsSameUser, type BinaryNode, getBinaryNodeChild, jidDecode } from '../WABinary/index.js'
+import { isStringNullOrEmpty } from './generics.js'
+import type { ILogger } from './logger.js'
 
 export type IdentityChangeResult =
 	| { action: 'no_identity_node' }

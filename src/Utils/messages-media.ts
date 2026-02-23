@@ -10,7 +10,7 @@ import { join } from 'path'
 import { Readable, Transform } from 'stream'
 import { URL } from 'url'
 import { proto } from '../../WAProto/index.js'
-import { DEFAULT_ORIGIN, MEDIA_HKDF_KEY_MAPPING, MEDIA_PATH_MAP, type MediaType } from '../Defaults'
+import { DEFAULT_ORIGIN, MEDIA_HKDF_KEY_MAPPING, MEDIA_PATH_MAP, type MediaType } from '../Defaults/index.js'
 import type {
 	BaileysEventMap,
 	DownloadableMessage,
@@ -23,11 +23,11 @@ import type {
 	WAMediaUploadFunction,
 	WAMessageContent,
 	WAMessageKey
-} from '../Types'
-import { type BinaryNode, getBinaryNodeChild, getBinaryNodeChildBuffer, jidNormalizedUser } from '../WABinary'
-import { aesDecryptGCM, aesEncryptGCM, hkdf } from './crypto'
-import { generateMessageIDV2 } from './generics'
-import type { ILogger } from './logger'
+} from '../Types/index.js'
+import { type BinaryNode, getBinaryNodeChild, getBinaryNodeChildBuffer, jidNormalizedUser } from '../WABinary/index.js'
+import { aesDecryptGCM, aesEncryptGCM, hkdf } from './crypto.js'
+import { generateMessageIDV2 } from './generics.js'
+import type { ILogger } from './logger.js'
 
 const getTmpFilesDirectory = () => tmpdir()
 

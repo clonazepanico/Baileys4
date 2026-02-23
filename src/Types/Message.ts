@@ -1,10 +1,10 @@
 import type { Readable } from 'stream'
 import type { URL } from 'url'
 import { proto } from '../../WAProto/index.js'
-import type { MediaType } from '../Defaults'
-import type { BinaryNode, JidWithDevice } from '../WABinary'
-import type { GroupMetadata } from './GroupMetadata'
-import type { CacheStore } from './Socket'
+import type { MediaType } from '../Defaults/index.js'
+import type { BinaryNode, JidWithDevice } from '../WABinary/index.js'
+import type { GroupMetadata } from './GroupMetadata.js'
+import type { CacheStore } from './Socket.js'
 
 // export the WAMessage Prototypes
 export { proto as WAProto }
@@ -35,7 +35,7 @@ export type WAGenericMediaMessage =
 	| proto.Message.IStickerMessage
 export const WAMessageStubType = proto.WebMessageInfo.StubType
 export const WAMessageStatus = proto.WebMessageInfo.Status
-import type { ILogger } from '../Utils/logger'
+import type { ILogger } from '../Utils/logger.js'
 export type WAMediaPayloadURL = { url: URL | string }
 export type WAMediaPayloadStream = { stream: Readable }
 export type WAMediaUpload = Buffer | WAMediaPayloadStream | WAMediaPayloadURL

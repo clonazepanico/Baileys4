@@ -1,7 +1,7 @@
 import NodeCache from '@cacheable/node-cache'
 import { Boom } from '@hapi/boom'
 import { proto } from '../../WAProto/index.js'
-import { DEFAULT_CACHE_TTLS, WA_DEFAULT_EPHEMERAL } from '../Defaults'
+import { DEFAULT_CACHE_TTLS, WA_DEFAULT_EPHEMERAL } from '../Defaults/index.js'
 import type {
 	AnyMessageContent,
 	MediaConnInfo,
@@ -11,7 +11,7 @@ import type {
 	SocketConfig,
 	WAMessage,
 	WAMessageKey
-} from '../Types'
+} from '../Types/index.js'
 import {
 	aggregateMessageKeysNotFromMe,
 	assertMediaContent,
@@ -32,10 +32,10 @@ import {
 	normalizeMessageContent,
 	parseAndInjectE2ESessions,
 	unixTimestampSeconds
-} from '../Utils'
-import { getUrlInfo } from '../Utils/link-preview'
-import { makeKeyedMutex } from '../Utils/make-mutex'
-import { getMessageReportingToken, shouldIncludeReportingToken } from '../Utils/reporting-utils'
+} from '../Utils/index.js'
+import { getUrlInfo } from '../Utils/link-preview.js'
+import { makeKeyedMutex } from '../Utils/make-mutex.js'
+import { getMessageReportingToken, shouldIncludeReportingToken } from '../Utils/reporting-utils.js'
 import {
 	areJidsSameUser,
 	type BinaryNode,
@@ -53,9 +53,9 @@ import {
 	jidNormalizedUser,
 	type JidWithDevice,
 	S_WHATSAPP_NET
-} from '../WABinary'
-import { USyncQuery, USyncUser } from '../WAUSync'
-import { makeNewsletterSocket } from './newsletter'
+} from '../WABinary/index.js'
+import { USyncQuery, USyncUser } from '../WAUSync/index.js'
+import { makeNewsletterSocket } from './newsletter.js'
 
 export const makeMessagesSocket = (config: SocketConfig) => {
 	const {

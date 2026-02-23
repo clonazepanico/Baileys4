@@ -6,9 +6,9 @@ import {
 	type SocketConfig,
 	type WAMessageKey,
 	WAMessageStubType
-} from '../Types'
-import { generateMessageID, generateMessageIDV2, unixTimestampSeconds } from '../Utils'
-import logger from '../Utils/logger'
+} from '../Types/index.js'
+import { generateMessageID, generateMessageIDV2, unixTimestampSeconds } from '../Utils/index.js'
+import logger from '../Utils/logger.js'
 import {
 	type BinaryNode,
 	getBinaryNodeChild,
@@ -16,8 +16,8 @@ import {
 	getBinaryNodeChildString,
 	jidEncode,
 	jidNormalizedUser
-} from '../WABinary'
-import { makeBusinessSocket } from './business'
+} from '../WABinary/index.js'
+import { makeBusinessSocket } from './business.js'
 
 export const makeCommunitiesSocket = (config: SocketConfig) => {
 	const sock = makeBusinessSocket(config)

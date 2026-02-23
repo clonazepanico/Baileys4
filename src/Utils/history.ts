@@ -1,13 +1,13 @@
 import { promisify } from 'util'
 import { inflate } from 'zlib'
 import { proto } from '../../WAProto/index.js'
-import type { Chat, Contact, LIDMapping, WAMessage } from '../Types'
-import { WAMessageStubType } from '../Types'
-import { isHostedLidUser, isHostedPnUser, isLidUser, isPnUser } from '../WABinary'
-import { toNumber } from './generics'
+import type { Chat, Contact, LIDMapping, WAMessage } from '../Types/index.js'
+import { WAMessageStubType } from '../Types/index.js'
+import { isHostedLidUser, isHostedPnUser, isLidUser, isPnUser } from '../WABinary/index.js'
+import { toNumber } from './generics.js'
 import type { ILogger } from './logger.js'
-import { normalizeMessageContent } from './messages'
-import { downloadContentFromMessage } from './messages-media'
+import { normalizeMessageContent } from './messages.js'
+import { downloadContentFromMessage } from './messages-media.js'
 
 const inflatePromise = promisify(inflate)
 

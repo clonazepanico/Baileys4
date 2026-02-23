@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'crypto'
-import * as curve from 'libsignal/src/curve'
-import { KEY_BUNDLE_TYPE } from '../Defaults'
-import type { KeyPair } from '../Types'
+import * as curve from 'libsignal/src/curve.js'
+import { KEY_BUNDLE_TYPE } from '../Defaults/index.js'
+import type { KeyPair } from '../Types/index.js'
 export { md5, hkdf } from 'whatsapp-rust-bridge'
 
 // insure browser & node compatibility

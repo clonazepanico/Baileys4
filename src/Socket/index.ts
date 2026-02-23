@@ -1,6 +1,6 @@
-import { DEFAULT_CONNECTION_CONFIG } from '../Defaults'
-import type { UserFacingSocketConfig } from '../Types'
-import { makeCommunitiesSocket } from './communities'
+import { DEFAULT_CONNECTION_CONFIG } from '../Defaults/index.js'
+import type { UserFacingSocketConfig } from '../Types/index.js'
+import { makeCommunitiesSocket } from './communities.js'
 
 // export the last socket layer
 const makeWASocket = (config: UserFacingSocketConfig) => {

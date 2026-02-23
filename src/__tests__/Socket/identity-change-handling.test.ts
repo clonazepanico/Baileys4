@@ -1,8 +1,8 @@
 import NodeCache from '@cacheable/node-cache'
 import { jest } from '@jest/globals'
 import P from 'pino'
-import { handleIdentityChange, type IdentityChangeContext } from '../../Utils/identity-change-handler'
-import { type BinaryNode } from '../../WABinary'
+import { handleIdentityChange, type IdentityChangeContext } from '../../Utils/identity-change-handler.js'
+import { type BinaryNode } from '../../WABinary/index.js'
 
 const logger = P({ level: 'silent' })
 

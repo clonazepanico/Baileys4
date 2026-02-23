@@ -1,12 +1,12 @@
 // @ts-ignore
 import * as libsignal from 'libsignal'
 // @ts-ignore
-import { PreKeyWhisperMessage } from 'libsignal/src/protobufs'
+import { PreKeyWhisperMessage } from 'libsignal/src/protobufs.js'
 import { LRUCache } from 'lru-cache'
-import type { LIDMapping, SignalAuthState, SignalKeyStoreWithTransaction } from '../Types'
-import type { SignalRepositoryWithLIDStore } from '../Types/Signal'
-import { generateSignalPubKey } from '../Utils'
-import type { ILogger } from '../Utils/logger'
+import type { LIDMapping, SignalAuthState, SignalKeyStoreWithTransaction } from '../Types/index.js'
+import type { SignalRepositoryWithLIDStore } from '../Types/Signal.js'
+import { generateSignalPubKey } from '../Utils/index.js'
+import type { ILogger } from '../Utils/logger.js'
 import {
 	isHostedLidUser,
 	isHostedPnUser,
@@ -15,12 +15,12 @@ import {
 	jidDecode,
 	transferDevice,
 	WAJIDDomains
-} from '../WABinary'
-import type { SenderKeyStore } from './Group/group_cipher'
-import { SenderKeyName } from './Group/sender-key-name'
-import { SenderKeyRecord } from './Group/sender-key-record'
-import { GroupCipher, GroupSessionBuilder, SenderKeyDistributionMessage } from './Group'
-import { LIDMappingStore } from './lid-mapping'
+} from '../WABinary/index.js'
+import type { SenderKeyStore } from './Group/group_cipher.js'
+import { SenderKeyName } from './Group/sender-key-name.js'
+import { SenderKeyRecord } from './Group/sender-key-record.js'
+import { GroupCipher, GroupSessionBuilder, SenderKeyDistributionMessage } from './Group/index.js'
+import { LIDMappingStore } from './lid-mapping.js'
 
 /** Extract identity key from PreKeyWhisperMessage for identity change detection */
 function extractIdentityFromPkmsg(ciphertext: Uint8Array): Uint8Array | undefined {

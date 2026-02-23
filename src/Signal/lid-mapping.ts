@@ -1,7 +1,7 @@
 import { LRUCache } from 'lru-cache'
-import type { LIDMapping, SignalKeyStoreWithTransaction } from '../Types'
-import type { ILogger } from '../Utils/logger'
-import { isHostedPnUser, isLidUser, isPnUser, jidDecode, jidNormalizedUser, WAJIDDomains } from '../WABinary'
+import type { LIDMapping, SignalKeyStoreWithTransaction } from '../Types/index.js'
+import type { ILogger } from '../Utils/logger.js'
+import { isHostedPnUser, isLidUser, isPnUser, jidDecode, jidNormalizedUser, WAJIDDomains } from '../WABinary/index.js'
 
 export class LIDMappingStore {
 	private readonly mappingCache = new LRUCache<string, string>({

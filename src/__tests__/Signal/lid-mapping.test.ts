@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals'
 import P from 'pino'
-import { LIDMappingStore } from '../../Signal/lid-mapping'
-import type { LIDMapping, SignalDataTypeMap, SignalKeyStoreWithTransaction } from '../../Types'
+import { LIDMappingStore } from '../../Signal/lid-mapping.js'
+import type { LIDMapping, SignalDataTypeMap, SignalKeyStoreWithTransaction } from '../../Types/index.js'
 
 const HOSTED_DEVICE_ID = 99
 

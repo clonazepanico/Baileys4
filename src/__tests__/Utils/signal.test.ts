@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals'
-import type { SignalRepositoryWithLIDStore } from '../../Types'
-import { parseAndInjectE2ESessions } from '../../Utils/signal'
-import type { BinaryNode } from '../../WABinary/types'
+import type { SignalRepositoryWithLIDStore } from '../../Types/index.js'
+import { parseAndInjectE2ESessions } from '../../Utils/signal.js'
+import type { BinaryNode } from '../../WABinary/types.js'
 
 describe('parseAndInjectE2ESessions', () => {
 	it('should process all user node', async () => {

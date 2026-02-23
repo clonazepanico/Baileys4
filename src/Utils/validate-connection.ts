@@ -6,12 +6,12 @@ import {
 	WA_ADV_ACCOUNT_SIG_PREFIX,
 	WA_ADV_DEVICE_SIG_PREFIX,
 	WA_ADV_HOSTED_ACCOUNT_SIG_PREFIX
-} from '../Defaults'
-import type { AuthenticationCreds, SignalCreds, SocketConfig } from '../Types'
-import { type BinaryNode, getBinaryNodeChild, jidDecode, S_WHATSAPP_NET } from '../WABinary'
-import { Curve, hmacSign } from './crypto'
-import { encodeBigEndian } from './generics'
-import { createSignalIdentity } from './signal'
+} from '../Defaults/index.js'
+import type { AuthenticationCreds, SignalCreds, SocketConfig } from '../Types/index.js'
+import { type BinaryNode, getBinaryNodeChild, jidDecode, S_WHATSAPP_NET } from '../WABinary/index.js'
+import { Curve, hmacSign } from './crypto.js'
+import { encodeBigEndian } from './generics.js'
+import { createSignalIdentity } from './signal.js'
 
 const getUserAgent = (config: SocketConfig): proto.ClientPayload.IUserAgent => {
 	return {

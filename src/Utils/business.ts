@@ -13,10 +13,10 @@ import type {
 	ProductUpdate,
 	WAMediaUpload,
 	WAMediaUploadFunction
-} from '../Types'
-import { type BinaryNode, getBinaryNodeChild, getBinaryNodeChildren, getBinaryNodeChildString } from '../WABinary'
-import { generateMessageIDV2 } from './generics'
-import { getStream, getUrlFromDirectPath } from './messages-media'
+} from '../Types/index.js'
+import { type BinaryNode, getBinaryNodeChild, getBinaryNodeChildren, getBinaryNodeChildString } from '../WABinary/index.js'
+import { generateMessageIDV2 } from './generics.js'
+import { getStream, getUrlFromDirectPath } from './messages-media.js'
 
 export const parseCatalogNode = (node: BinaryNode) => {
 	const catalogNode = getBinaryNodeChild(node, 'product_catalog')

@@ -1,8 +1,8 @@
 import { jest } from '@jest/globals'
-import { NOISE_WA_HEADER } from '../../Defaults'
-import { Curve } from '../../Utils/crypto'
-import { makeNoiseHandler } from '../../Utils/noise-handler'
-import type { BinaryNode } from '../../WABinary/types'
+import { NOISE_WA_HEADER } from '../../Defaults/index.js'
+import { Curve } from '../../Utils/crypto.js'
+import { makeNoiseHandler } from '../../Utils/noise-handler.js'
+import type { BinaryNode } from '../../WABinary/types.js'
 
 // Create a mock logger
 const createMockLogger = () => ({

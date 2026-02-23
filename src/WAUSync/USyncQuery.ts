@@ -1,14 +1,14 @@
-import type { USyncQueryProtocol } from '../Types/USync'
-import { type BinaryNode, getBinaryNodeChild } from '../WABinary'
-import { USyncBotProfileProtocol } from './Protocols/UsyncBotProfileProtocol'
-import { USyncLIDProtocol } from './Protocols/UsyncLIDProtocol'
+import type { USyncQueryProtocol } from '../Types/USync.js'
+import { type BinaryNode, getBinaryNodeChild } from '../WABinary/index.js'
+import { USyncBotProfileProtocol } from './Protocols/UsyncBotProfileProtocol.js'
+import { USyncLIDProtocol } from './Protocols/UsyncLIDProtocol.js'
 import {
 	USyncContactProtocol,
 	USyncDeviceProtocol,
 	USyncDisappearingModeProtocol,
 	USyncStatusProtocol
-} from './Protocols'
-import { USyncUser } from './USyncUser'
+} from './Protocols/index.js'
+import { USyncUser } from './USyncUser.js'
 
 export type USyncQueryResultList = { [protocol: string]: unknown; id: string }
 

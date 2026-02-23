@@ -9,7 +9,7 @@ import {
 	MIN_PREKEY_COUNT,
 	PLACEHOLDER_MAX_AGE_SECONDS,
 	STATUS_EXPIRY_SECONDS
-} from '../Defaults'
+} from '../Defaults/index.js'
 import type {
 	GroupParticipant,
 	MessageReceiptType,
@@ -20,8 +20,8 @@ import type {
 	WAMessage,
 	WAMessageKey,
 	WAPatchName
-} from '../Types'
-import { WAMessageStatus, WAMessageStubType } from '../Types'
+} from '../Types/index.js'
+import { WAMessageStatus, WAMessageStubType } from '../Types/index.js'
 import {
 	aesDecryptCTR,
 	aesEncryptGCM,
@@ -48,8 +48,8 @@ import {
 	unixTimestampSeconds,
 	xmppPreKey,
 	xmppSignedPreKey
-} from '../Utils'
-import { makeMutex } from '../Utils/make-mutex'
+} from '../Utils/index.js'
+import { makeMutex } from '../Utils/make-mutex.js'
 import {
 	areJidsSameUser,
 	type BinaryNode,
@@ -67,9 +67,9 @@ import {
 	jidDecode,
 	jidNormalizedUser,
 	S_WHATSAPP_NET
-} from '../WABinary'
-import { extractGroupMetadata } from './groups'
-import { makeMessagesSocket } from './messages-send'
+} from '../WABinary/index.js'
+import { extractGroupMetadata } from './groups.js'
+import { makeMessagesSocket } from './messages-send.js'
 
 export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	const { logger, retryRequestDelayMs, maxMsgRetryCount, getMessage, shouldIgnoreJid, enableAutoSessionRecreation } =

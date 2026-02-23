@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals'
-import type { ILogger } from '../../Utils/logger'
-import { processContactAction } from '../../Utils/sync-action-utils'
+import type { ILogger } from '../../Utils/logger.js'
+import { processContactAction } from '../../Utils/sync-action-utils.js'
 
 describe('processContactAction', () => {
 	const mockLogger: ILogger = {

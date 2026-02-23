@@ -1,11 +1,11 @@
 import { Boom } from '@hapi/boom'
 import { proto } from '../../WAProto/index.js'
-import { NOISE_MODE, WA_CERT_DETAILS } from '../Defaults'
-import type { KeyPair } from '../Types'
-import type { BinaryNode } from '../WABinary'
-import { decodeBinaryNode } from '../WABinary'
-import { aesDecryptGCM, aesEncryptGCM, Curve, hkdf, sha256 } from './crypto'
-import type { ILogger } from './logger'
+import { NOISE_MODE, WA_CERT_DETAILS } from '../Defaults/index.js'
+import type { KeyPair } from '../Types/index.js'
+import type { BinaryNode } from '../WABinary/index.js'
+import { decodeBinaryNode } from '../WABinary/index.js'
+import { aesDecryptGCM, aesEncryptGCM, Curve, hkdf, sha256 } from './crypto.js'
+import type { ILogger } from './logger.js'
 
 const IV_LENGTH = 12
 

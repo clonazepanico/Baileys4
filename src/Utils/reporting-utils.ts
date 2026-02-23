@@ -1,8 +1,8 @@
 import { createHmac } from 'crypto'
 import { proto } from '../../WAProto/index.js'
-import type { WAMessageContent, WAMessageKey } from '../Types'
-import type { BinaryNode } from '../WABinary'
-import { hkdf } from './crypto'
+import type { WAMessageContent, WAMessageKey } from '../Types/index.js'
+import type { BinaryNode } from '../WABinary/index.js'
+import { hkdf } from './crypto.js'
 
 export type ReportingField = {
 	f: number

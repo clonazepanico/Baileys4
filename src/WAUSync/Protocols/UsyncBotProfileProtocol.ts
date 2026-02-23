@@ -1,6 +1,6 @@
-import type { USyncQueryProtocol } from '../../Types/USync'
-import { type BinaryNode, getBinaryNodeChild, getBinaryNodeChildren, getBinaryNodeChildString } from '../../WABinary'
-import { USyncUser } from '../USyncUser'
+import type { USyncQueryProtocol } from '../../Types/USync.js'
+import { type BinaryNode, getBinaryNodeChild, getBinaryNodeChildren, getBinaryNodeChildString } from '../../WABinary/index.js'
+import { USyncUser } from '../USyncUser.js'
 
 export type BotProfileCommand = {
 	name: string

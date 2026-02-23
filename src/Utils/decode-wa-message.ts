@@ -1,7 +1,7 @@
 import { Boom } from '@hapi/boom'
 import { proto } from '../../WAProto/index.js'
-import type { WAMessage, WAMessageKey } from '../Types'
-import type { SignalRepositoryWithLIDStore } from '../Types/Signal'
+import type { WAMessage, WAMessageKey } from '../Types/index.js'
+import type { SignalRepositoryWithLIDStore } from '../Types/Signal.js'
 import {
 	areJidsSameUser,
 	type BinaryNode,
@@ -15,9 +15,9 @@ import {
 	isLidUser,
 	isPnUser
 	//	transferDevice
-} from '../WABinary'
-import { unpadRandomMax16 } from './generics'
-import type { ILogger } from './logger'
+} from '../WABinary/index.js'
+import { unpadRandomMax16 } from './generics.js'
+import type { ILogger } from './logger.js'
 
 export const getDecryptionJid = async (sender: string, repository: SignalRepositoryWithLIDStore): Promise<string> => {
 	if (isLidUser(sender) || isHostedLidUser(sender)) {

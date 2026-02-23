@@ -1,5 +1,5 @@
 import { proto } from '../../../WAProto/index.js'
-import { processHistoryMessage } from '../../Utils/history'
+import { processHistoryMessage } from '../../Utils/history.js'
 
 describe('processHistoryMessage', () => {
 	describe('phoneNumberToLidMappings extraction', () => {

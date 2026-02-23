@@ -1,9 +1,9 @@
 import { jest } from '@jest/globals'
 import { proto } from '../../../WAProto/index.js'
-import type { BaileysEventEmitter, ChatMutation, Contact } from '../../Types'
-import { LabelAssociationType } from '../../Types/LabelAssociation'
-import { processSyncAction } from '../../Utils/chat-utils'
-import type { ILogger } from '../../Utils/logger'
+import type { BaileysEventEmitter, ChatMutation, Contact } from '../../Types/index.js'
+import { LabelAssociationType } from '../../Types/LabelAssociation.js'
+import { processSyncAction } from '../../Utils/chat-utils.js'
+import type { ILogger } from '../../Utils/logger.js'
 
 const createMockEventEmitter = () => {
 	const emittedEvents: Array<{ event: string; data: unknown }> = []

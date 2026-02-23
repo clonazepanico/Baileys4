@@ -3,7 +3,7 @@ import * as http from 'http'
 import * as os from 'os'
 import * as path from 'path'
 import { Readable } from 'stream'
-import { encryptedStream, type UploadParams, uploadWithNodeHttp } from '../../Utils/messages-media'
+import { encryptedStream, type UploadParams, uploadWithNodeHttp } from '../../Utils/messages-media.js'
 
 const createTempFile = async (content: string): Promise<string> => {
 	const filePath = path.join(os.tmpdir(), `test-upload-${Date.now()}.txt`)

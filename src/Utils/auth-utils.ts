@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from 'async_hooks'
 import { Mutex } from 'async-mutex'
 import { randomBytes } from 'crypto'
 import PQueue from 'p-queue'
-import { DEFAULT_CACHE_TTLS } from '../Defaults'
+import { DEFAULT_CACHE_TTLS } from '../Defaults/index.js'
 import type {
 	AuthenticationCreds,
 	CacheStore,
@@ -12,11 +12,11 @@ import type {
 	SignalKeyStore,
 	SignalKeyStoreWithTransaction,
 	TransactionCapabilityOptions
-} from '../Types'
-import { Curve, signedKeyPair } from './crypto'
-import { delay, generateRegistrationId } from './generics'
-import type { ILogger } from './logger'
-import { PreKeyManager } from './pre-key-manager'
+} from '../Types/index.js'
+import { Curve, signedKeyPair } from './crypto.js'
+import { delay, generateRegistrationId } from './generics.js'
+import type { ILogger } from './logger.js'
+import { PreKeyManager } from './pre-key-manager.js'
 
 /**
  * Transaction context stored in AsyncLocalStorage

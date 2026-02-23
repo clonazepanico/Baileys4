@@ -1,6 +1,6 @@
-import type { GetCatalogOptions, ProductCreate, ProductUpdate, SocketConfig, WAMediaUpload } from '../Types'
-import type { UpdateBussinesProfileProps } from '../Types/Bussines'
-import { getRawMediaUploadData } from '../Utils'
+import type { GetCatalogOptions, ProductCreate, ProductUpdate, SocketConfig, WAMediaUpload } from '../Types/index.js'
+import type { UpdateBussinesProfileProps } from '../Types/Bussines.js'
+import { getRawMediaUploadData } from '../Utils/index.js'
 import {
 	parseCatalogNode,
 	parseCollectionsNode,
@@ -8,10 +8,10 @@ import {
 	parseProductNode,
 	toProductNode,
 	uploadingNecessaryImagesOfProduct
-} from '../Utils/business'
-import { type BinaryNode, jidNormalizedUser, S_WHATSAPP_NET } from '../WABinary'
-import { getBinaryNodeChild } from '../WABinary/generic-utils'
-import { makeMessagesRecvSocket } from './messages-recv'
+} from '../Utils/business.js'
+import { type BinaryNode, jidNormalizedUser, S_WHATSAPP_NET } from '../WABinary/index.js'
+import { getBinaryNodeChild } from '../WABinary/generic-utils.js'
+import { makeMessagesRecvSocket } from './messages-recv.js'
 
 export const makeBusinessSocket = (config: SocketConfig) => {
 	const sock = makeMessagesRecvSocket(config)

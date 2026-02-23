@@ -1,5 +1,5 @@
-import { KEY_BUNDLE_TYPE } from '../Defaults'
-import type { SignalRepositoryWithLIDStore } from '../Types'
+import { KEY_BUNDLE_TYPE } from '../Defaults/index.js'
+import type { SignalRepositoryWithLIDStore } from '../Types/index.js'
 import type {
 	AuthenticationCreds,
 	AuthenticationState,
@@ -7,7 +7,7 @@ import type {
 	SignalIdentity,
 	SignalKeyStore,
 	SignedKeyPair
-} from '../Types/Auth'
+} from '../Types/Auth.js'
 import {
 	assertNodeErrorFree,
 	type BinaryNode,
@@ -20,10 +20,10 @@ import {
 	jidDecode,
 	S_WHATSAPP_NET,
 	WAJIDDomains
-} from '../WABinary'
-import type { DeviceListData, ParsedDeviceInfo, USyncQueryResultList } from '../WAUSync'
-import { Curve, generateSignalPubKey } from './crypto'
-import { encodeBigEndian } from './generics'
+} from '../WABinary/index.js'
+import type { DeviceListData, ParsedDeviceInfo, USyncQueryResultList } from '../WAUSync/index.js'
+import { Curve, generateSignalPubKey } from './crypto.js'
+import { encodeBigEndian } from './generics.js'
 
 function chunk<T>(array: T[], size: number): T[][] {
 	const chunks: T[][] = []

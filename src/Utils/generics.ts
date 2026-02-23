@@ -9,10 +9,10 @@ import type {
 	WACallUpdateType,
 	WAMessageKey,
 	WAVersion
-} from '../Types'
-import { DisconnectReason } from '../Types'
-import { type BinaryNode, getAllBinaryNodeChildren, jidDecode } from '../WABinary'
-import { sha256 } from './crypto'
+} from '../Types/index.js'
+import { DisconnectReason } from '../Types/index.js'
+import { type BinaryNode, getAllBinaryNodeChildren, jidDecode } from '../WABinary/index.js'
+import { sha256 } from './crypto.js'
 
 export const BufferJSON = {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any

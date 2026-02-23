@@ -1,5 +1,5 @@
-import type { USyncQueryProtocol } from '../../Types/USync'
-import { assertNodeErrorFree, type BinaryNode } from '../../WABinary'
+import type { USyncQueryProtocol } from '../../Types/USync.js'
+import { assertNodeErrorFree, type BinaryNode } from '../../WABinary/index.js'
 
 export type StatusData = {
 	status?: string | null

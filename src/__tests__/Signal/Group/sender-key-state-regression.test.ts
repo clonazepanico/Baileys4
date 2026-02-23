@@ -1,5 +1,5 @@
-import { SenderKeyState } from '../../../Signal/Group/sender-key-state'
-import { SenderMessageKey } from '../../../Signal/Group/sender-message-key'
+import { SenderKeyState } from '../../../Signal/Group/sender-key-state.js'
+import { SenderMessageKey } from '../../../Signal/Group/sender-message-key.js'
 
 describe('SenderKeyState regression: missing senderMessageKeys array', () => {
 	it('should initialize senderMessageKeys when absent in provided structure', () => {

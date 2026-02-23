@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { fetchLatestWaWebVersion } from '../../Utils/generics'
+import { fetchLatestWaWebVersion } from '../../Utils/generics.js'
 
 describe('fetchLatestWaWebVersion Integration Tests', () => {
 	jest.setTimeout(10000)

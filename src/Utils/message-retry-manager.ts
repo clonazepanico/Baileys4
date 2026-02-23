@@ -1,6 +1,6 @@
 import { LRUCache } from 'lru-cache'
 import type { proto } from '../../WAProto/index.js'
-import type { ILogger } from './logger'
+import type { ILogger } from './logger.js'
 
 /** Number of sent messages to cache in memory for handling retry receipts */
 const RECENT_MESSAGES_SIZE = 512

@@ -9,12 +9,12 @@ import type {
 	Contact,
 	WAMessage,
 	WAMessageKey
-} from '../Types'
-import { WAMessageStatus } from '../Types'
-import { trimUndefined } from './generics'
-import type { ILogger } from './logger'
-import { updateMessageWithReaction, updateMessageWithReceipt } from './messages'
-import { isRealMessage, shouldIncrementChatUnread } from './process-message'
+} from '../Types/index.js'
+import { WAMessageStatus } from '../Types/index.js'
+import { trimUndefined } from './generics.js'
+import type { ILogger } from './logger.js'
+import { updateMessageWithReaction, updateMessageWithReceipt } from './messages.js'
+import { isRealMessage, shouldIncrementChatUnread } from './process-message.js'
 
 const BUFFERABLE_EVENT = [
 	'messaging-history.set',

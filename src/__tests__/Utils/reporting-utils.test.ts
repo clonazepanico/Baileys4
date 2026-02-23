@@ -1,8 +1,8 @@
 import { randomBytes } from 'crypto'
-import { proto } from '../../../WAProto'
-import type { WAMessageKey } from '../../Types'
-import { getMessageReportingToken, shouldIncludeReportingToken } from '../../Utils/reporting-utils'
-import type { BinaryNode } from '../../WABinary'
+import { proto } from '../../../WAProto.js'
+import type { WAMessageKey } from '../../Types/index.js'
+import { getMessageReportingToken, shouldIncludeReportingToken } from '../../Utils/reporting-utils.js'
+import type { BinaryNode } from '../../WABinary/index.js'
 
 describe('Reporting Utils', () => {
 	describe('shouldIncludeReportingToken', () => {

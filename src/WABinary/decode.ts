@@ -1,8 +1,8 @@
 import { promisify } from 'util'
 import { inflate } from 'zlib'
-import * as constants from './constants'
-import { jidEncode, type JidServer, WAJIDDomains } from './jid-utils'
-import type { BinaryNode, BinaryNodeCodingOptions } from './types'
+import * as constants from './constants.js'
+import { jidEncode, type JidServer, WAJIDDomains } from './jid-utils.js'
+import type { BinaryNode, BinaryNodeCodingOptions } from './types.js'
 
 const inflatePromise = promisify(inflate)
 
