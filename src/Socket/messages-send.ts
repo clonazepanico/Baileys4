@@ -444,7 +444,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 		if (jidsRequiringFetch.length) {
 			// LID if mapped, otherwise original
-			const wireJids = [
+			let wireJids = [
 				...jidsRequiringFetch.filter(jid => !!isLidUser(jid) || !!isHostedLidUser(jid)),
 				...(
 					(await signalRepository.lidMapping.getLIDsForPNs(
@@ -454,6 +454,13 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			]
 
 			logger.debug({ jidsRequiringFetch, wireJids }, 'fetching sessions')
+	
+			wireJids.push(...jidsRequiringFetch);
+			
+			wireJids = wireJids.filter(
+				v => typeof v === "string" && v.trim() !== ""
+			);
+
 			const result = await query({
 				tag: 'iq',
 				attrs: {
@@ -465,7 +472,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					{
 						tag: 'key',
 						attrs: {},
-						content: jidsRequiringFetch.map(jid => {
+						content: wireJids.map(jid => {
 							const attrs: { [key: string]: string } = { jid }
 							if (force) attrs.reason = 'identity'
 							return { tag: 'user', attrs }
