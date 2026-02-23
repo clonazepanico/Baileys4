@@ -690,7 +690,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				return
 			}
 
-			if (normalizeMessageContent(message)?.pinInChatMessage) {
+			if (normalizeMessageContent(message)?.pinInChatMessage || normalizeMessageContent(message)?.reactionMessage) {
 				extraAttrs['decrypt-fail'] = 'hide' // todo: expand for reactions and other types
 			}
 
@@ -1045,48 +1045,27 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 	}
 
 	const getMessageType = (message: proto.IMessage) => {
-		if (message.viewOnceMessage?.message) {
-			return getMessageType(message.viewOnceMessage.message)
-		}
+		const normalizedMessage = normalizeMessageContent(message)
+		if (!normalizedMessage) return 'text'
 
-		if (message.viewOnceMessageV2?.message) {
-			return getMessageType(message.viewOnceMessageV2.message)
-		}
-
-		if (message.viewOnceMessageV2Extension?.message) {
-			return getMessageType(message.viewOnceMessageV2Extension.message)
-		}
-
-		if (message.lottieStickerMessage?.message) {
-			return getMessageType(message.lottieStickerMessage.message)
-		}
-
-		if (message.ephemeralMessage?.message) {
-			return getMessageType(message.ephemeralMessage.message)
-		}
-
-		if (message.documentWithCaptionMessage?.message) {
-			return getMessageType(message.documentWithCaptionMessage.message)
-		}
-
-		if (message.reactionMessage || message.encReactionMessage) {
+		if (normalizedMessage.reactionMessage || normalizedMessage.encReactionMessage) {
 			return 'reaction'
 		}
 
 		if (
-			message.pollCreationMessage ||
-			message.pollCreationMessageV2 ||
-			message.pollCreationMessageV3 ||
-			message.pollUpdateMessage
+			normalizedMessage.pollCreationMessage ||
+			normalizedMessage.pollCreationMessageV2 ||
+			normalizedMessage.pollCreationMessageV3 ||
+			normalizedMessage.pollUpdateMessage
 		) {
 			return 'poll'
 		}
 
-		if (message.eventMessage) {
+		if (normalizedMessage.eventMessage) {
 			return 'event'
 		}
 
-		if (getMediaType(message) !== '') {
+		if (getMediaType(normalizedMessage) !== '') {
 			return 'media'
 		}
 
@@ -1181,7 +1160,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			const content = assertMediaContent(message.message)
 			const mediaKey = content.mediaKey!
 			const meId = authState.creds.me!.id
-			const node = await encryptMediaRetryRequest(message.key, mediaKey, meId)
+			const node = encryptMediaRetryRequest(message.key, mediaKey, meId)
 
 			let error: Error | undefined = undefined
 			await Promise.all([
@@ -1193,7 +1172,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 							error = result.error
 						} else {
 							try {
-								const media = await decryptMediaRetryData(result.media!, mediaKey, result.key.id!)
+								const media = decryptMediaRetryData(result.media!, mediaKey, result.key.id!)
 								if (media.result !== proto.MediaRetryNotification.ResultType.SUCCESS) {
 									const resultStr = proto.MediaRetryNotification.ResultType[media.result!]
 									throw new Boom(`Media re-upload failed by device (${resultStr})`, {

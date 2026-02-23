@@ -404,9 +404,9 @@ export type MessageUserReceiptUpdate = { key: WAMessageKey; receipt: MessageUser
 export type MessageUserPendingUpdate = { key: proto.IMessageKey, devices: JidWithDevice[] }
 
 export type MediaDecryptionKeyInfo = {
-	iv: Buffer
-	cipherKey: Buffer
-	macKey?: Buffer
+	iv: Uint8Array
+	cipherKey: Uint8Array
+	macKey?: Uint8Array
 }
 
 export type MinimalMessage = Pick<WAMessage, 'key' | 'messageTimestamp'>
