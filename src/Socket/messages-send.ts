@@ -478,7 +478,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			didFetchNewSession = true
 
 			// Cache fetched sessions using wire JIDs
-			for (const wireJid of jidsRequiringFetch) {
+			for (const wireJid of wireJids) {
 				const signalId = signalRepository.jidToSignalProtocolAddress(wireJid)
 				peerSessionsCache.set(signalId, true)
 			}
@@ -486,6 +486,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 		return didFetchNewSession
 	}
+
 
 	const sendPeerDataOperationMessage = async (
 		pdoMessage: proto.Message.IPeerDataOperationRequestMessage
