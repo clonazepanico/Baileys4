@@ -9,7 +9,7 @@ import {
 	MIN_PREKEY_COUNT,
 	PLACEHOLDER_MAX_AGE_SECONDS,
 	STATUS_EXPIRY_SECONDS
-} from '../Defaults/index.js'
+} from '../Defaults'
 import type {
 	GroupParticipant,
 	MessageReceiptType,
@@ -20,8 +20,8 @@ import type {
 	WAMessage,
 	WAMessageKey,
 	WAPatchName
-} from '../Types/index.js'
-import { WAMessageStatus, WAMessageStubType } from '../Types/index.js'
+} from '../Types'
+import { WAMessageStatus, WAMessageStubType } from '../Types'
 import {
 	aesDecryptCTR,
 	aesEncryptGCM,
@@ -48,8 +48,10 @@ import {
 	unixTimestampSeconds,
 	xmppPreKey,
 	xmppSignedPreKey
-} from '../Utils/index.js'
-import { makeMutex } from '../Utils/make-mutex.js'
+} from '../Utils'
+import { makeMutex } from '../Utils/make-mutex'
+import { makeOfflineNodeProcessor, type MessageType } from '../Utils/offline-node-processor'
+import { buildAckStanza } from '../Utils/stanza-ack'
 import {
 	areJidsSameUser,
 	type BinaryNode,
@@ -67,9 +69,9 @@ import {
 	jidDecode,
 	jidNormalizedUser,
 	S_WHATSAPP_NET
-} from '../WABinary/index.js'
-import { extractGroupMetadata } from './groups.js'
-import { makeMessagesSocket } from './messages-send.js'
+} from '../WABinary'
+import { extractGroupMetadata } from './groups'
+import { makeMessagesSocket } from './messages-send'
 
 export const makeMessagesRecvSocket = (config: SocketConfig) => {
 	const { logger, retryRequestDelayMs, maxMsgRetryCount, getMessage, shouldIgnoreJid, enableAutoSessionRecreation } =
@@ -101,13 +103,13 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 	const msgRetryCache =
 		config.msgRetryCounterCache ||
-		new NodeCache({
+		new NodeCache<number>({
 			stdTTL: DEFAULT_CACHE_TTLS.MSG_RETRY, // 1 hour
 			useClones: false
 		})
 	const callOfferCache =
 		config.callOfferCache ||
-		new NodeCache({
+		new NodeCache<WACallEvent>({
 			stdTTL: DEFAULT_CACHE_TTLS.CALL_OFFER, // 5 mins
 			useClones: false
 		})
@@ -120,7 +122,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		})
 
 	// Debounce identity-change session refreshes per JID to avoid bursts
-	const identityAssertDebounce = new NodeCache({ stdTTL: 5, useClones: false })
+	const identityAssertDebounce = new NodeCache<boolean>({ stdTTL: 5, useClones: false })
 
 	let sendActiveReceipts = false
 
@@ -342,64 +344,10 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		}
 	}
 
-	const ackSendMutex = makeMutex()
-	const ackWindow: number[] = []
-	const ACK_WINDOW_MS = 1000
-	const ACK_MAX_PER_WINDOW = 40
-
-	const applyAckRateLimit = async () => {
-		while (true) {
-			const now = Date.now()
-			while (ackWindow.length && now - ackWindow[0] >= ACK_WINDOW_MS) {
-				ackWindow.shift()
-			}
-
-			if (ackWindow.length < ACK_MAX_PER_WINDOW) {
-				ackWindow.push(now)
-				return
-			}
-
-			const waitMs = Math.max(ACK_WINDOW_MS - (now - ackWindow[0]!), 25)
-			await delay(waitMs)
-		}
-	}
-
-	const sendMessageAck = async ({ tag, attrs, content }: BinaryNode, errorCode?: number) => {
-		const stanza: BinaryNode = {
-			tag: 'ack',
-			attrs: {
-				id: attrs.id!,
-				to: attrs.from!,
-				class: tag
-			}
-		}
-
-		if (!!errorCode) {
-			stanza.attrs.error = errorCode.toString()
-		}
-
-		if (!!attrs.participant) {
-			stanza.attrs.participant = attrs.participant
-		}
-
-		if (!!attrs.recipient) {
-			stanza.attrs.recipient = attrs.recipient
-		}
-
-		if (
-			!!attrs.type &&
-			(tag !== 'message' || getBinaryNodeChild({ tag, attrs, content }, 'unavailable') || errorCode !== 0)
-		) {
-			stanza.attrs.type = attrs.type
-		}
-
-		if (tag === 'message' && getBinaryNodeChild({ tag, attrs, content }, 'unavailable')) {
-			stanza.attrs.from = authState.creds.me!.id
-		}
-		await ackSendMutex.mutex(async () => {
-			await applyAckRateLimit()
-			await sendNode(stanza)
-		})
+	const sendMessageAck = async (node: BinaryNode, errorCode?: number) => {
+		const stanza = buildAckStanza(node, errorCode, authState.creds.me!.id)
+		logger.debug({ recv: { tag: node.tag, attrs: node.attrs }, sent: stanza.attrs }, 'sent ack')
+		await sendNode(stanza)
 	}
 
 	const rejectCall = async (callId: string, callFrom: string) => {
@@ -556,7 +504,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					tag: 'keys',
 					attrs: {},
 					content: [
-						{ tag: 'type', attrs: {}, content: new Uint8Array(Buffer.from(KEY_BUNDLE_TYPE)) },
+						{ tag: 'type', attrs: {}, content: Buffer.from(KEY_BUNDLE_TYPE) },
 						{ tag: 'identity', attrs: {}, content: identityKey.public },
 						xmppPreKey(key!, +keyId!),
 						xmppSignedPreKey(signedPreKey),
@@ -993,6 +941,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 					msg = cachedMsg.message
 					logger.debug({ jid: remoteJid, id }, 'found message in retry cache')
 					fromMessageRetryManager = true;
+
 					// Mark retry as successful since we found the message
 					messageRetryManager.markRetrySuccess(id)
 				}
@@ -1053,7 +1002,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 		for (const [i, msg] of msgs.entries()) {
 			if (!ids[i]) continue
-			
+
 			if (msg && (await willSendMessageAgain(ids[i], participant))) {
 				await updateSendMessageAgainCount(ids[i], participant)
 				const msgRelayOpts: MessageRelayOptions = { messageId: ids[i] }
@@ -1108,7 +1057,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		}
 
 		if (shouldIgnoreJid(remoteJid!, 'handleReceipt', node) && remoteJid !== S_WHATSAPP_NET) {
-			logger.debug({ remoteJid }, 'ignoring receipt from jid')
+			logger.debug({ remoteJid }, 'ignoring receipt from jid')	
 			await sendMessageAck(node)
 			return
 		}
@@ -1181,7 +1130,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				})
 			])
 		} finally {
-			await sendMessageAck(node)
+			await sendMessageAck(node).catch(ackErr => logger.error({ ackErr }, 'failed to ack receipt'))
 		}
 	}
 
@@ -1218,7 +1167,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 				})
 			])
 		} finally {
-			await sendMessageAck(node)
+			await sendMessageAck(node).catch(ackErr => logger.error({ ackErr }, 'failed to ack notification'))
 		}
 	}
 
@@ -1237,46 +1186,43 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			return
 		}
 
-		const {
-			fullMessage: msg,
-			category,
-			author,
-			decrypt
-		} = decryptMessageNode(node, authState.creds.me!.id, authState.creds.me!.lid || '', signalRepository, logger)
-
-		const alt = msg.key.participantAlt || msg.key.remoteJidAlt
-		// store new mappings we didn't have before
-		if (!!alt) {
-			const altServer = jidDecode(alt)?.server
-			const primaryJid = msg.key.participant || msg.key.remoteJid!
-			if (altServer === 'lid') {
-				if (!(await signalRepository.lidMapping.getPNForLID(alt))) {
-					await signalRepository.lidMapping.storeLIDPNMappings([{ lid: alt, pn: primaryJid }])
-					await signalRepository.migrateSession(primaryJid, alt)
-				}
-			} else {
-				await signalRepository.lidMapping.storeLIDPNMappings([{ lid: primaryJid, pn: alt }])
-				await signalRepository.migrateSession(alt, primaryJid)
-			}
-		}
-
-		if (msg.key?.remoteJid && msg.key?.id && messageRetryManager) {
-			messageRetryManager.addRecentMessage(msg.key.remoteJid, msg.key.id, msg.message!)
-			logger.debug(
-				{
-					jid: msg.key.remoteJid,
-					id: msg.key.id
-				},
-				'Added message to recent cache for retry receipts'
-			)
-		}
+		let acked = false
 
 		try {
+			const {
+				fullMessage: msg,
+				category,
+				author,
+				decrypt
+			} = decryptMessageNode(node, authState.creds.me!.id, authState.creds.me!.lid || '', signalRepository, logger)
+
+			const alt = msg.key.participantAlt || msg.key.remoteJidAlt
+			// store new mappings we didn't have before
+			if (!!alt) {
+				const altServer = jidDecode(alt)?.server
+				const primaryJid = msg.key.participant || msg.key.remoteJid!
+				if (altServer === 'lid') {
+					if (!(await signalRepository.lidMapping.getPNForLID(alt))) {
+						await signalRepository.lidMapping.storeLIDPNMappings([{ lid: alt, pn: primaryJid }])
+						await signalRepository.migrateSession(primaryJid, alt)
+					}
+				} else {
+					await signalRepository.lidMapping.storeLIDPNMappings([{ lid: primaryJid, pn: alt }])
+					await signalRepository.migrateSession(alt, primaryJid)
+				}
+			}
+
 			await messageMutex.mutex(async () => {
 				await decrypt()
+
+				if (msg.key?.remoteJid && msg.key?.id && msg.message && messageRetryManager) {
+					messageRetryManager.addRecentMessage(msg.key.remoteJid, msg.key.id, msg.message)
+				}
+
 				// message failed to decrypt
 				if (msg.messageStubType === proto.WebMessageInfo.StubType.CIPHERTEXT && msg.category !== 'peer') {
 					if (msg?.messageStubParameters?.[0] === MISSING_KEYS_ERROR_TEXT) {
+						acked = true
 						return sendMessageAck(node, NACK_REASONS.ParsingError)
 					}
 
@@ -1294,12 +1240,14 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 								{ msgId: msg.key.id, unavailableType },
 								'skipping placeholder resend for excluded unavailable type'
 							)
+							acked = true
 							return sendMessageAck(node)
 						}
 
 						const messageAge = unixTimestampSeconds() - toNumber(msg.messageTimestamp)
 						if (messageAge > PLACEHOLDER_MAX_AGE_SECONDS) {
 							logger.debug({ msgId: msg.key.id, messageAge }, 'skipping placeholder resend for old message')
+							acked = true
 							return sendMessageAck(node)
 						}
 
@@ -1337,6 +1285,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 							.catch(err => {
 								logger.warn({ err, msgId: msg.key.id }, 'failed to request placeholder resend for unavailable message')
 							})
+						acked = true
 						await sendMessageAck(node)
 						// Don't return — fall through to upsertMessage so the stub is emitted
 					} else {
@@ -1348,6 +1297,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 									{ msgId: msg.key.id, messageAge, remoteJid: msg.key.remoteJid },
 									'skipping retry for expired status message'
 								)
+								acked = true
 								return sendMessageAck(node)
 							}
 						}
@@ -1395,6 +1345,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 								}
 							}
 
+							acked = true
 							await sendMessageAck(node, NACK_REASONS.UnhandledError)
 						})
 					}
@@ -1422,6 +1373,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 							type = 'inactive'
 						}
 
+						acked = true
 						await sendReceipt(msg.key.remoteJid!, participant!, [msg.key.id!], type)
 
 						// send ack for history message
@@ -1431,6 +1383,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 							await sendReceipt(jid, undefined, [msg.key.id!], 'hist_sync') // TODO: investigate
 						}
 					} else {
+						acked = true
 						await sendMessageAck(node)
 						logger.debug({ key: msg.key }, 'processed newsletter message without receipts')
 					}
@@ -1442,76 +1395,83 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 			})
 		} catch (error) {
 			logger.error({ error, node: binaryNodeToString(node) }, 'error in handling message')
+			if (!acked) {
+				await sendMessageAck(node, NACK_REASONS.UnhandledError).catch(ackErr =>
+					logger.error({ ackErr }, 'failed to ack message after error')
+				)
+			}
 		}
 	}
 
 	const handleCall = async (node: BinaryNode) => {
-		const { attrs } = node
-		const [infoChild] = getAllBinaryNodeChildren(node)
-		const status = getCallStatusFromNode(infoChild!)
+		try {
+			const { attrs } = node
+			const [infoChild] = getAllBinaryNodeChildren(node)
 
-		if (!infoChild) {
-			throw new Boom('Missing call info in call node')
+			if (!infoChild) {
+				throw new Boom('Missing call info in call node')
+			}
+
+			const status = getCallStatusFromNode(infoChild)
+
+			const callId = infoChild.attrs['call-id']!
+			const from = infoChild.attrs.from! || infoChild.attrs['call-creator']!
+
+			const call: WACallEvent = {
+				chatId: attrs.from!,
+				from,
+				callerPn: infoChild.attrs['caller_pn'],
+				id: callId,
+				date: new Date(+attrs.t! * 1000),
+				offline: !!attrs.offline,
+				status
+			}
+
+			if (status === 'offer') {
+				call.isVideo = !!getBinaryNodeChild(infoChild, 'video')
+				call.isGroup = infoChild.attrs.type === 'group' || !!infoChild.attrs['group-jid']
+				call.groupJid = infoChild.attrs['group-jid']
+				await callOfferCache.set(call.id, call)
+			}
+
+			const existingCall = await callOfferCache.get<WACallEvent>(call.id)
+
+			// use existing call info to populate this event
+			if (existingCall) {
+				call.isVideo = existingCall.isVideo
+				call.isGroup = existingCall.isGroup
+				call.callerPn = call.callerPn || existingCall.callerPn
+			}
+
+			// delete data once call has ended
+			if (status === 'reject' || status === 'accept' || status === 'timeout' || status === 'terminate') {
+				await callOfferCache.del(call.id)
+			}
+
+			ev.emit('call', [call])
+		} catch (error) {
+			logger.error({ error, node: binaryNodeToString(node) }, 'error in handling call')
+		} finally {
+			await sendMessageAck(node).catch(ackErr => logger.error({ ackErr }, 'failed to ack call'))
 		}
-
-		const callId = infoChild.attrs['call-id']!
-		const from = infoChild.attrs.from! || infoChild.attrs['call-creator']!
-
-		const call: WACallEvent = {
-			chatId: attrs.from!,
-			from,
-			callerPn: infoChild.attrs['caller_pn'],
-			id: callId,
-			date: new Date(+attrs.t! * 1000),
-			offline: !!attrs.offline,
-			status
-		}
-
-		if (status === 'offer') {
-			call.isVideo = !!getBinaryNodeChild(infoChild, 'video')
-			call.isGroup = infoChild.attrs.type === 'group' || !!infoChild.attrs['group-jid']
-			call.groupJid = infoChild.attrs['group-jid']
-			await callOfferCache.set(call.id, call)
-		}
-
-		const existingCall = await callOfferCache.get<WACallEvent>(call.id)
-
-		// use existing call info to populate this event
-		if (existingCall) {
-			call.isVideo = existingCall.isVideo
-			call.isGroup = existingCall.isGroup
-			call.callerPn = call.callerPn || existingCall.callerPn
-		}
-
-		// delete data once call has ended
-		if (status === 'reject' || status === 'accept' || status === 'timeout' || status === 'terminate') {
-			await callOfferCache.del(call.id)
-		}
-
-		ev.emit('call', [call])
-
-		await sendMessageAck(node)
 	}
 
 	const handleBadAck = async ({ attrs }: BinaryNode) => {
 		const key: WAMessageKey = { remoteJid: attrs.from, fromMe: true, id: attrs.id }
-		// current hypothesis is that if pash is sent in the ack
-		// it means -- the message hasn't reached all devices yet
-		// we'll retry sending the message here
-		/*
-		if(attrs.phash) {
-			logger.info({ attrs }, 'received phash in ack, resending message...')
-			const msg = await getMessage(key)
-			if(msg?.message) {
-				await relayMessage(key.remoteJid!, msg.message, {
-					messageId: key.id!,
-					useUserDevicesCache: false,
-					additionalAttributes: msg.additionalAttributes,
-				})
-			} else {
-				logger.warn({ attrs }, 'could not send message again, as it was not found')
-			}
-		} */
+
+		// WARNING: REFRAIN FROM ENABLING THIS FOR NOW. IT WILL CAUSE A LOOP
+		// // current hypothesis is that if pash is sent in the ack
+		// // it means -- the message hasn't reached all devices yet
+		// // we'll retry sending the message here
+		// if(attrs.phash) {
+		// 	logger.info({ attrs }, 'received phash in ack, resending message...')
+		// 	const msg = await getMessage(key)
+		// 	if(msg) {
+		// 		await relayMessage(key.remoteJid!, msg, { messageId: key.id!, useUserDevicesCache: false })
+		// 	} else {
+		// 		logger.warn({ attrs }, 'could not send message again, as it was not found')
+		// 	}
+		// }
 
 		// error in acknowledgement,
 		// device could not display the message
@@ -1559,74 +1519,19 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		}
 	}
 
-	type MessageType = 'message' | 'call' | 'receipt' | 'notification'
-
-	type OfflineNode = {
-		type: MessageType
-		node: BinaryNode
-	}
-
-	/** Yields control to the event loop to prevent blocking */
-	const yieldToEventLoop = (): Promise<void> => {
-		return new Promise(resolve => setImmediate(resolve))
-	}
-
-	const makeOfflineNodeProcessor = () => {
-		const nodeProcessorMap: Map<MessageType, (node: BinaryNode) => Promise<void>> = new Map([
+	const offlineNodeProcessor = makeOfflineNodeProcessor(
+		new Map<MessageType, (node: BinaryNode) => Promise<void>>([
 			['message', handleMessage],
 			['call', handleCall],
 			['receipt', handleReceipt],
 			['notification', handleNotification]
-		])
-		const nodes: OfflineNode[] = []
-		let isProcessing = false
-
-		// Number of nodes to process before yielding to event loop
-		const BATCH_SIZE = 10
-
-		const enqueue = (type: MessageType, node: BinaryNode) => {
-			nodes.push({ type, node })
-
-			if (isProcessing) {
-				return
-			}
-
-			isProcessing = true
-
-			const promise = async () => {
-				let processedInBatch = 0
-
-				while (nodes.length && ws.isOpen) {
-					const { type, node } = nodes.shift()!
-
-					const nodeProcessor = nodeProcessorMap.get(type)
-
-					if (!nodeProcessor) {
-						onUnexpectedError(new Error(`unknown offline node type: ${type}`), 'processing offline node')
-						continue
-					}
-
-					await nodeProcessor(node)
-					processedInBatch++
-
-					// Yield to event loop after processing a batch
-					// This prevents blocking the event loop for too long when there are many offline nodes
-					if (processedInBatch >= BATCH_SIZE) {
-						processedInBatch = 0
-						await yieldToEventLoop()
-					}
-				}
-
-				isProcessing = false
-			}
-
-			promise().catch(error => onUnexpectedError(error, 'processing offline nodes'))
+		]),
+		{
+			isWsOpen: () => ws.isOpen,
+			onUnexpectedError,
+			yieldToEventLoop: () => new Promise(resolve => setImmediate(resolve))
 		}
-
-		return { enqueue }
-	}
-
-	const offlineNodeProcessor = makeOfflineNodeProcessor()
+	)
 
 	const processNode = async (
 		type: MessageType,

@@ -1,7 +1,7 @@
 import NodeCache from '@cacheable/node-cache'
-import { areJidsSameUser, type BinaryNode, getBinaryNodeChild, jidDecode } from '../WABinary/index.js'
-import { isStringNullOrEmpty } from './generics.js'
-import type { ILogger } from './logger.js'
+import { areJidsSameUser, type BinaryNode, getBinaryNodeChild, jidDecode } from '../WABinary'
+import { isStringNullOrEmpty } from './generics'
+import type { ILogger } from './logger'
 
 export type IdentityChangeResult =
 	| { action: 'no_identity_node' }
@@ -19,7 +19,7 @@ export type IdentityChangeContext = {
 	meLid: string | undefined
 	validateSession: (jid: string) => Promise<{ exists: boolean; reason?: string }>
 	assertSessions: (jids: string[], force?: boolean) => Promise<boolean>
-	debounceCache: NodeCache
+	debounceCache: NodeCache<boolean>
 	logger: ILogger
 }
 
