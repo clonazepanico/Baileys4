@@ -1,7 +1,7 @@
 import NodeCache from '@cacheable/node-cache'
 import { Boom } from '@hapi/boom'
 import { proto } from '../../WAProto/index.js'
-import { DEFAULT_CACHE_TTLS, WA_DEFAULT_EPHEMERAL } from '../Defaults/index.js'
+import { DEFAULT_CACHE_TTLS, WA_DEFAULT_EPHEMERAL } from '../Defaults'
 import type {
 	AnyMessageContent,
 	MediaConnInfo,
@@ -11,7 +11,7 @@ import type {
 	SocketConfig,
 	WAMessage,
 	WAMessageKey
-} from '../Types/index.js'
+} from '../Types'
 import {
 	aggregateMessageKeysNotFromMe,
 	assertMediaContent,
@@ -32,10 +32,10 @@ import {
 	normalizeMessageContent,
 	parseAndInjectE2ESessions,
 	unixTimestampSeconds
-} from '../Utils/index.js'
-import { getUrlInfo } from '../Utils/link-preview.js'
-import { makeKeyedMutex } from '../Utils/make-mutex.js'
-import { getMessageReportingToken, shouldIncludeReportingToken } from '../Utils/reporting-utils.js'
+} from '../Utils'
+import { getUrlInfo } from '../Utils/link-preview'
+import { makeKeyedMutex } from '../Utils/make-mutex'
+import { getMessageReportingToken, shouldIncludeReportingToken } from '../Utils/reporting-utils'
 import {
 	areJidsSameUser,
 	type BinaryNode,
@@ -53,9 +53,9 @@ import {
 	jidNormalizedUser,
 	type JidWithDevice,
 	S_WHATSAPP_NET
-} from '../WABinary/index.js'
-import { USyncQuery, USyncUser } from '../WAUSync/index.js'
-import { makeNewsletterSocket } from './newsletter.js'
+} from '../WABinary'
+import { USyncQuery, USyncUser } from '../WAUSync'
+import { makeNewsletterSocket } from './newsletter'
 
 export const makeMessagesSocket = (config: SocketConfig) => {
 	const {
@@ -84,12 +84,12 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 	const userDevicesCache =
 		config.userDevicesCache ||
-		new NodeCache({
+		new NodeCache<JidWithDevice[]>({
 			stdTTL: DEFAULT_CACHE_TTLS.USER_DEVICES, // 5 minutes
 			useClones: false
 		})
 
-	const peerSessionsCache = new NodeCache({
+	const peerSessionsCache = new NodeCache<boolean>({
 		stdTTL: DEFAULT_CACHE_TTLS.USER_DEVICES,
 		useClones: false
 	})
@@ -250,7 +250,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 		if (useCache && userDevicesCache.mget) {
 			const usersToFetch = jidsWithUser.map(j => j?.user).filter(Boolean) as string[]
-			//@ts-ignore
 			mgetDevices = await userDevicesCache.mget(usersToFetch)
 		}
 
@@ -454,7 +453,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 			]
 
 			logger.debug({ jidsRequiringFetch, wireJids }, 'fetching sessions')
-			console.log('fetching sessions', { jidsRequiringFetch, wireJids })
 			const result = await query({
 				tag: 'iq',
 				attrs: {
@@ -486,7 +484,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 		return didFetchNewSession
 	}
-
 
 	const sendPeerDataOperationMessage = async (
 		pdoMessage: proto.Message.IPeerDataOperationRequestMessage
@@ -1233,7 +1230,7 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 								...(httpRequestOptions || {})
 							},
 							logger,
-							uploadImage: generateHighQualityLinkPreview ? waUploadToServer : undefined,
+							uploadImage: generateHighQualityLinkPreview ? waUploadToServer : undefined
 						}, options.myCache, options.sendThumbnail, options.thumbnailLink),
 					//TODO: CACHE
 					getProfilePicUrl: sock.profilePictureUrl,
@@ -1278,7 +1275,6 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 						}
 					} as BinaryNode)
 				}
-
 
 				if(options?.custom_message_handler) {
 					options?.custom_message_handler.addMessage(fullMsg)
