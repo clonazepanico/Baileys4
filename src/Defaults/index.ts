@@ -5,7 +5,7 @@ import { Browsers } from '../Utils/browser-utils.js'
 import logger from '../Utils/logger.js'
 import defaultVersion from './baileys-version.json' with { type: 'json' }
 
-const version = [2, 3000, 1033105955]
+const version = [2, 3000, 1035194821]
 
 export const UNAUTHORIZED_CODES = [401, 403, 419]
 
