@@ -1,6 +1,6 @@
-import type { USyncQueryProtocol } from '../../Types/USync'
-import { assertNodeErrorFree, type BinaryNode, getBinaryNodeChild } from '../../WABinary'
-//import { USyncUser } from '../USyncUser'
+import type { USyncQueryProtocol } from '../../Types/USync.js'
+import { assertNodeErrorFree, type BinaryNode, getBinaryNodeChild } from '../../WABinary/index.js'
+//import { USyncUser } from '../USyncUser.js'
 
 export type KeyIndexData = {
 	timestamp: number

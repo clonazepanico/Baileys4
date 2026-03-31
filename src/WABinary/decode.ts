@@ -1,8 +1,8 @@
 import { promisify } from 'util'
 import { inflate } from 'zlib'
-import * as constants from './constants'
-import { jidEncode } from './jid-utils'
-import type { BinaryNode, BinaryNodeCodingOptions } from './types'
+import * as constants from './constants.js'
+import { jidEncode, type JidServer, WAJIDDomains } from './jid-utils.js'
+import type { BinaryNode, BinaryNodeCodingOptions } from './types.js'
 
 const inflatePromise = promisify(inflate)
 
@@ -155,7 +155,39 @@ export const decodeDecompressedBinaryNode = (
 		const device = readByte()
 		const user = readString(readByte()!)
 
-		return jidEncode(user, domainType === 0 || domainType === 128 ? 's.whatsapp.net' : 'lid', device)
+		let server: JidServer = 's.whatsapp.net' // default whatsapp server
+		if (domainType === WAJIDDomains.LID) {
+			server = 'lid'
+		} else if (domainType === WAJIDDomains.HOSTED) {
+			server = 'hosted'
+		} else if (domainType === WAJIDDomains.HOSTED_LID) {
+			server = 'hosted.lid'
+		}
+
+		return jidEncode(user, server, device)
+	}
+
+	const readFbJid = () => {
+		const user = readString(readByte()!)
+		const device = readInt(2)
+		const server = readString(readByte()!)
+		return `${user}:${device}@${server}`
+	}
+
+	const readInteropJid = () => {
+		const user = readString(readByte()!)
+		const device = readInt(2)
+		const integrator = readInt(2)
+
+		let server = 'interop'
+		const beforeServer = indexRef.index
+		try {
+			server = readString(readByte()!)
+		} catch (err) {
+			indexRef.index = beforeServer
+		}
+
+		return `${integrator}-${user}:${device}@${server}`
 	}
 
 	const readString = (tag: number): string => {
@@ -179,6 +211,10 @@ export const decodeDecompressedBinaryNode = (
 				return readStringFromChars(readInt(4))
 			case TAGS.JID_PAIR:
 				return readJidPair()
+			case TAGS.FB_JID:
+				return readFbJid()
+			case TAGS.INTEROP_JID:
+				return readInteropJid()
 			case TAGS.AD_JID:
 				return readAdJid()
 			case TAGS.HEX_8:

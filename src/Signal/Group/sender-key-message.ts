@@ -1,7 +1,6 @@
-/* @ts-ignore */
-import { calculateSignature, verifySignature } from 'libsignal/src/curve'
+import { calculateSignature, verifySignature } from 'libsignal/src/curve.js'
 import { proto } from '../../../WAProto/index.js'
-import { CiphertextMessage } from './ciphertext-message'
+import { CiphertextMessage } from './ciphertext-message.js'
 
 interface SenderKeyMessageStructure {
 	id: number

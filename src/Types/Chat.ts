@@ -1,10 +1,11 @@
 import type { proto } from '../../WAProto/index.js'
-import type { AccountSettings } from './Auth'
-import type { BufferedEventData } from './Events'
-import type { LabelActionBody } from './Label'
-import type { ChatLabelAssociationActionBody } from './LabelAssociation'
-import type { MessageLabelAssociationActionBody } from './LabelAssociation'
-import type { MinimalMessage, WAMessageKey } from './Message'
+import type { AccountSettings } from './Auth.js'
+import type { QuickReplyAction } from './Bussines.js'
+import type { BufferedEventData } from './Events.js'
+import type { LabelActionBody } from './Label.js'
+import type { ChatLabelAssociationActionBody } from './LabelAssociation.js'
+import type { MessageLabelAssociationActionBody } from './LabelAssociation.js'
+import type { MinimalMessage, WAMessageKey } from './Message.js'
 
 /** privacy settings in WhatsApp Web */
 export type WAPrivacyValue = 'all' | 'contacts' | 'contact_blacklist' | 'none'
@@ -72,6 +73,8 @@ export type ChatUpdate = Partial<
 		 * undefined if the condition is not yet fulfilled
 		 * */
 		conditional: (bufferedData: BufferedEventData) => boolean | undefined
+		/** last update time */
+		timestamp?: number
 	}
 >
 
@@ -119,6 +122,7 @@ export type ChatModification =
 	| { removeChatLabel: ChatLabelAssociationActionBody }
 	| { addMessageLabel: MessageLabelAssociationActionBody }
 	| { removeMessageLabel: MessageLabelAssociationActionBody }
+	| { quickReply: QuickReplyAction }
 
 export type InitialReceivedChatsState = {
 	[jid: string]: {

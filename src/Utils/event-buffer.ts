@@ -1,5 +1,4 @@
 import EventEmitter from 'events'
-import { proto } from '../../WAProto/index.js'
 import type {
 	BaileysEvent,
 	BaileysEventEmitter,
@@ -8,13 +7,14 @@ import type {
 	Chat,
 	ChatUpdate,
 	Contact,
-	WAMessage
-} from '../Types'
-import { WAMessageStatus } from '../Types'
-import { trimUndefined } from './generics'
-import type { ILogger } from './logger'
-import { updateMessageWithReaction, updateMessageWithReceipt } from './messages'
-import { isRealMessage, shouldIncrementChatUnread } from './process-message'
+	WAMessage,
+	WAMessageKey
+} from '../Types/index.js'
+import { WAMessageStatus } from '../Types/index.js'
+import { trimUndefined } from './generics.js'
+import type { ILogger } from './logger.js'
+import { updateMessageWithReaction, updateMessageWithReceipt } from './messages.js'
+import { isRealMessage, shouldIncrementChatUnread } from './process-message.js'
 
 const BUFFERABLE_EVENT = [
 	'messaging-history.set',
@@ -66,7 +66,6 @@ export type BaileysBufferableEventEmitter = BaileysEventEmitter & {
 /**
  * The event buffer logically consolidates different events into a single event
  * making the data processing more efficient.
- * @param ev the baileys event emitter
  */
 export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter => {
 	const ev = new EventEmitter()
@@ -74,6 +73,11 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 
 	let data = makeBufferData()
 	let isBuffering = false
+	let bufferTimeout: NodeJS.Timeout | null = null
+	let flushPendingTimeout: NodeJS.Timeout | null = null // Add a specific timer for the debounced flush to prevent leak
+	let bufferCount = 0
+	const MAX_HISTORY_CACHE_SIZE = 10000 // Limit the history cache size to prevent memory bloat
+	const BUFFER_TIMEOUT_MS = 30000 // 30 seconds
 
 	// take the generic event and fire it as a baileys event
 	ev.on('event', (map: BaileysEventData) => {
@@ -86,7 +90,22 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 		if (!isBuffering) {
 			logger.debug('Event buffer activated')
 			isBuffering = true
+			bufferCount = 0
+
+			if (bufferTimeout) {
+				clearTimeout(bufferTimeout)
+			}
+
+			bufferTimeout = setTimeout(() => {
+				if (isBuffering) {
+					logger.warn('Buffer timeout reached, auto-flushing')
+					flush()
+				}
+			}, BUFFER_TIMEOUT_MS)
 		}
+
+		// Always increment count when requested
+		bufferCount++
 	}
 
 	function flush() {
@@ -94,8 +113,26 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 			return false
 		}
 
-		logger.debug('Flushing event buffer')
+		logger.debug({ bufferCount }, 'Flushing event buffer')
 		isBuffering = false
+		bufferCount = 0
+
+		// Clear timeout
+		if (bufferTimeout) {
+			clearTimeout(bufferTimeout)
+			bufferTimeout = null
+		}
+
+		if (flushPendingTimeout) {
+			clearTimeout(flushPendingTimeout)
+			flushPendingTimeout = null
+		}
+
+		// Clear history cache if it exceeds the max size
+		if (historyCache.size > MAX_HISTORY_CACHE_SIZE) {
+			logger.debug({ cacheSize: historyCache.size }, 'Clearing history cache')
+			historyCache.clear()
+		}
 
 		const newData = makeBufferData()
 		const chatUpdates = Object.values(data.chatUpdates)
@@ -122,8 +159,8 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 
 	return {
 		process(handler) {
-			const listener = (map: BaileysEventData) => {
-				handler(map)
+			const listener = async (map: BaileysEventData) => {
+				await handler(map)
 			}
 
 			ev.on('event', listener)
@@ -132,6 +169,28 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 			}
 		},
 		emit<T extends BaileysEvent>(event: BaileysEvent, evData: BaileysEventMap[T]) {
+			// Check if this is a messages.upsert with a different type than what's buffered
+			// If so, flush the buffered messages first to avoid type overshadowing
+			if (event === 'messages.upsert') {
+				const { type } = evData as BaileysEventMap['messages.upsert']
+				const existingUpserts = Object.values(data.messageUpserts)
+				if (existingUpserts.length > 0) {
+					const bufferedType = existingUpserts[0]!.type
+					if (bufferedType !== type) {
+						logger.debug({ bufferedType, newType: type }, 'messages.upsert type mismatch, emitting buffered messages')
+						// Emit the buffered messages with their correct type
+						ev.emit('event', {
+							'messages.upsert': {
+								messages: existingUpserts.map(m => m.message),
+								type: bufferedType
+							}
+						})
+						// Clear the message upserts from the buffer
+						data.messageUpserts = {}
+					}
+				}
+			}
+
 			if (isBuffering && BUFFERABLE_EVENT_SET.has(event)) {
 				append(data, historyCache, event as BufferableEvent, evData, logger)
 				return true
@@ -148,9 +207,27 @@ export const makeEventBuffer = (logger: ILogger): BaileysBufferableEventEmitter 
 			return async (...args) => {
 				buffer()
 				try {
-					return await work(...args)
+					const result = await work(...args)
+					// If this is the only buffer, flush after a small delay
+					if (bufferCount === 1) {
+						setTimeout(() => {
+							if (isBuffering && bufferCount === 1) {
+								flush()
+							}
+						}, 100) // Small delay to allow nested buffers
+					}
+
+					return result
+				} catch (error) {
+					throw error
 				} finally {
-					// Flushing is now controlled centrally by the state machine.
+					bufferCount = Math.max(0, bufferCount - 1)
+					if (bufferCount === 0) {
+						// Only schedule ONE timeout, not 10,000
+						if (!flushPendingTimeout) {
+							flushPendingTimeout = setTimeout(flush, 100)
+						}
+					}
 				}
 			}
 		},
@@ -194,14 +271,15 @@ function append<E extends BufferableEvent>(
 	switch (event) {
 		case 'messaging-history.set':
 			for (const chat of eventData.chats as Chat[]) {
-				const existingChat = data.historySets.chats[chat.id]
+				const id = chat.id || ''
+				const existingChat = data.historySets.chats[id]
 				if (existingChat) {
 					existingChat.endOfHistoryTransferType = chat.endOfHistoryTransferType
 				}
 
-				if (!existingChat && !historyCache.has(chat.id)) {
-					data.historySets.chats[chat.id] = chat
-					historyCache.add(chat.id)
+				if (!existingChat && !historyCache.has(id)) {
+					data.historySets.chats[id] = chat
+					historyCache.add(id)
 
 					absorbingChatUpdate(chat)
 				}
@@ -239,11 +317,12 @@ function append<E extends BufferableEvent>(
 			break
 		case 'chats.upsert':
 			for (const chat of eventData as Chat[]) {
-				let upsert = data.chatUpserts[chat.id]
-				if (!upsert) {
-					upsert = data.historySets.chats[chat.id]
+				const id = chat.id || ''
+				let upsert = data.chatUpserts[id]
+				if (id && !upsert) {
+					upsert = data.historySets.chats[id]
 					if (upsert) {
-						logger.debug({ chatId: chat.id }, 'absorbed chat upsert in chat set')
+						logger.debug({ chatId: id }, 'absorbed chat upsert in chat set')
 					}
 				}
 
@@ -251,13 +330,13 @@ function append<E extends BufferableEvent>(
 					upsert = concatChats(upsert, chat)
 				} else {
 					upsert = chat
-					data.chatUpserts[chat.id] = upsert
+					data.chatUpserts[id] = upsert
 				}
 
 				absorbingChatUpdate(upsert)
 
-				if (data.chatDeletes.has(chat.id)) {
-					data.chatDeletes.delete(chat.id)
+				if (data.chatDeletes.has(id)) {
+					data.chatDeletes.delete(id)
 				}
 			}
 
@@ -474,7 +553,7 @@ function append<E extends BufferableEvent>(
 	}
 
 	function absorbingChatUpdate(existing: Chat) {
-		const chatId = existing.id
+		const chatId = existing.id || ''
 		const update = data.chatUpdates[chatId]
 		if (update) {
 			const conditionMatches = update.conditional ? update.conditional(data) : true
@@ -496,7 +575,7 @@ function append<E extends BufferableEvent>(
 		const chatId = message.key.remoteJid!
 		const chat = data.chatUpdates[chatId] || data.chatUpserts[chatId]
 		if (
-			isRealMessage(message, '') &&
+			isRealMessage(message) &&
 			shouldIncrementChatUnread(message) &&
 			typeof chat?.unreadCount === 'number' &&
 			chat.unreadCount > 0
@@ -610,4 +689,4 @@ function concatChats<C extends Partial<Chat>>(a: C, b: Partial<Chat>) {
 	return Object.assign(a, b)
 }
 
-const stringifyMessageKey = (key: proto.IMessageKey) => `${key.remoteJid},${key.id},${key.fromMe ? '1' : '0'}`
+const stringifyMessageKey = (key: WAMessageKey) => `${key.remoteJid},${key.id},${key.fromMe ? '1' : '0'}`

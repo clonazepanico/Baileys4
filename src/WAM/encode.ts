@@ -1,4 +1,4 @@
-import { BinaryInfo } from './BinaryInfo'
+import { BinaryInfo } from './BinaryInfo.js'
 import {
 	FLAG_BYTE,
 	FLAG_EVENT,
@@ -8,7 +8,7 @@ import {
 	type Value,
 	WEB_EVENTS,
 	WEB_GLOBALS
-} from './constants'
+} from './constants.js'
 
 const getHeaderBitLength = (key: number) => (key < 256 ? 2 : 3)
 
@@ -18,7 +18,6 @@ export const encodeWAM = (binaryInfo: BinaryInfo) => {
 	encodeWAMHeader(binaryInfo)
 	encodeEvents(binaryInfo)
 
-	console.log(binaryInfo.buffer)
 	const totalSize = binaryInfo.buffer.map(a => a.length).reduce((a, b) => a + b)
 	const buffer = Buffer.alloc(totalSize)
 	let offset = 0

@@ -1,8 +1,8 @@
 import { jest } from '@jest/globals'
-import { proto } from '../..'
-import { DEFAULT_CONNECTION_CONFIG } from '../../Defaults'
-import makeWASocket from '../../Socket'
-import { makeSession, mockWebSocket } from '../TestUtils/session'
+import { proto, type WAMessage } from '../...js'
+import { DEFAULT_CONNECTION_CONFIG } from '../../Defaults/index.js'
+import makeWASocket from '../../Socket.js'
+import { makeSession, mockWebSocket } from '../TestUtils/session.js'
 
 mockWebSocket()
 
@@ -30,7 +30,7 @@ describe('Connection Deadlock Test', () => {
 			key: { remoteJid: '1234567890@s.whatsapp.net', fromMe: false, id: 'REGULAR_MSG_1' },
 			messageTimestamp: Date.now() / 1000,
 			message: { conversation: 'Hello, world!' }
-		})
+		}) as WAMessage
 		sock.ev.emit('messages.upsert', { messages: [regularMessage], type: 'notify' })
 		// Wait for the event loop to process any final events.
 		await new Promise(resolve => setTimeout(resolve, 50))
@@ -48,7 +48,7 @@ describe('Connection Deadlock Test', () => {
 			})
 		)
 
-		sock.end(new Error('Test completed'))
+		await sock.end(new Error('Test completed'))
 		await clear()
 	})
 })

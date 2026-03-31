@@ -20,3 +20,5 @@ TestData
 wa-logs.txt
 .lh
 .history
+wa-logs*
+coverage

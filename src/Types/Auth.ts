@@ -1,6 +1,6 @@
 import type { proto } from '../../WAProto/index.js'
-import type { Contact } from './Contact'
-import type { MinimalMessage } from './Message'
+import type { Contact } from './Contact.js'
+import type { MinimalMessage } from './Message.js'
 
 export type KeyPair = { public: Uint8Array; private: Uint8Array }
 export type SignedKeyPair = {
@@ -17,6 +17,11 @@ export type ProtocolAddress = {
 export type SignalIdentity = {
 	identifier: ProtocolAddress
 	identifierKey: Uint8Array
+}
+
+export type LIDMapping = {
+	pn: string
+	lid: string
 }
 
 export type LTHashState = {
@@ -63,6 +68,7 @@ export type AuthenticationCreds = SignalCreds & {
 	pairingCode: string | undefined
 	lastPropHash: string | undefined
 	routingInfo: Buffer | undefined
+	additionalData?: any | undefined
 }
 
 export type SignalDataTypeMap = {
@@ -74,6 +80,9 @@ export type SignalDataTypeMap = {
 	'app-state-sync-version': LTHashState
 	'identity-key': Uint8Array,
 
+	'lid-mapping': string
+	'device-list': string[]
+	tctoken: { token: Buffer; timestamp?: string }
 }
 
 export type SignalDataSet = { [T in keyof SignalDataTypeMap]?: { [id: string]: SignalDataTypeMap[T] | null } }
@@ -89,7 +98,7 @@ export type SignalKeyStore = {
 
 export type SignalKeyStoreWithTransaction = SignalKeyStore & {
 	isInTransaction: () => boolean
-	transaction<T>(exec: () => Promise<T>): Promise<T>
+	transaction<T>(exec: () => Promise<T>, key: string): Promise<T>
 }
 
 export type TransactionCapabilityOptions = {

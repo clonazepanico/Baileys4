@@ -1,10 +1,10 @@
-import type { NewsletterCreateResponse, WAMediaUpload } from '../Types'
-import type { NewsletterMetadata, NewsletterUpdate } from '../Types'
-import { QueryIds, XWAPaths } from '../Types'
-import { generateProfilePicture } from '../Utils/messages-media'
-import { getBinaryNodeChild } from '../WABinary'
-import type { GroupsSocket } from './groups'
-import { executeWMexQuery as genericExecuteWMexQuery } from './mex'
+import type { NewsletterCreateResponse, SocketConfig, WAMediaUpload } from '../Types/index.js'
+import type { NewsletterMetadata, NewsletterUpdate } from '../Types/index.js'
+import { QueryIds, XWAPaths } from '../Types/index.js'
+import { generateProfilePicture } from '../Utils/messages-media.js'
+import { getBinaryNodeChild } from '../WABinary/index.js'
+import { makeGroupsSocket } from './groups.js'
+import { executeWMexQuery as genericExecuteWMexQuery } from './mex.js'
 
 const parseNewsletterCreateResponse = (response: NewsletterCreateResponse): NewsletterMetadata => {
 	const { id, thread_metadata: thread, viewer_metadata: viewer } = response
@@ -41,7 +41,8 @@ const parseNewsletterMetadata = (result: unknown): NewsletterMetadata | null => 
 	return null
 }
 
-export const makeNewsletterSocket = (sock: GroupsSocket) => {
+export const makeNewsletterSocket = (config: SocketConfig) => {
+	const sock = makeGroupsSocket(config)
 	const { query, generateMessageTag } = sock
 
 	const executeWMexQuery = <T>(variables: Record<string, unknown>, queryId: string, dataPath: string): Promise<T> => {

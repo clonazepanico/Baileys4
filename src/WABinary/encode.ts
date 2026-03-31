@@ -1,6 +1,6 @@
-import * as constants from './constants'
-import { type FullJid, jidDecode } from './jid-utils'
-import type { BinaryNode, BinaryNodeCodingOptions } from './types'
+import * as constants from './constants.js'
+import { type FullJid, jidDecode } from './jid-utils.js'
+import type { BinaryNode, BinaryNodeCodingOptions } from './types.js'
 
 export const encodeBinaryNode = (
 	node: BinaryNode,
@@ -182,6 +182,11 @@ const encodeBinaryNodeInner = (
 			return
 		}
 
+		if (str === '') {
+			writeStringRaw(str)
+			return
+		}
+
 		const tokenIndex = TOKEN_MAP[str]
 		if (tokenIndex) {
 			if (typeof tokenIndex.dict === 'number') {
@@ -193,7 +198,7 @@ const encodeBinaryNodeInner = (
 			writePackedBytes(str, 'nibble')
 		} else if (isHex(str)) {
 			writePackedBytes(str, 'hex')
-		} else if (str) {
+		} else {
 			const decodedJid = jidDecode(str)
 			if (decodedJid) {
 				writeJid(decodedJid)

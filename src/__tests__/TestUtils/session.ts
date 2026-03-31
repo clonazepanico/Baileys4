@@ -2,7 +2,7 @@ import { jest } from '@jest/globals'
 import { promises as fs } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { useMultiFileAuthState } from '../..'
+import { useMultiFileAuthState } from '../...js'
 
 /**
  * Creates a temporary, isolated authentication state for tests.

@@ -1,5 +1,5 @@
-import { BufferJSON } from '../../Utils/generics'
-import { SenderKeyState } from './sender-key-state'
+import { BufferJSON } from '../../Utils/generics.js'
+import { SenderKeyState } from './sender-key-state.js'
 
 export interface SenderKeyStateStructure {
 	senderKeyId: number
@@ -61,17 +61,9 @@ export class SenderKeyRecord {
 	public serialize(): SenderKeyStateStructure[] {
 		return this.senderKeyStates.map(state => state.getStructure())
 	}
-	static deserialize(data: Uint8Array | string | SenderKeyStateStructure[]): SenderKeyRecord {
-		let parsed: SenderKeyStateStructure[]
-		if (typeof data === 'string') {
-			parsed = JSON.parse(data, BufferJSON.reviver)
-		} else if (data instanceof Uint8Array) {
-			const str = Buffer.from(data).toString('utf-8')
-			parsed = JSON.parse(str, BufferJSON.reviver)
-		} else {
-			parsed = data
-		}
-
+	static deserialize(data: Uint8Array): SenderKeyRecord {
+		const str = Buffer.from(data).toString('utf-8')
+		const parsed = JSON.parse(str, BufferJSON.reviver)
 		return new SenderKeyRecord(parsed)
 	}
 }
