@@ -104,6 +104,12 @@ export type SocketConfig = {
 	/** Should baileys fire init queries automatically, default true */
 	fireInitQueries: boolean
 	/**
+	 * When logging in with existing credentials (ClientPayload login node),
+	 * `passive: true` is the default for companion/QR sessions.
+	 * Set to `false` when importing a session from WhatsApp Web (passkey / extension).
+	 */
+	loginPassive: boolean
+	/**
 	 * generate a high quality link preview,
 	 * entails uploading the jpegThumbnail to WA
 	 * */
