@@ -30,6 +30,11 @@ type EncryptGroupMessageOpts = {
 	meId: string
 }
 
+type GetSenderKeyDistributionMessageOpts = {
+	group: string
+	meId: string
+}
+
 type PreKey = {
 	keyId: number
 	publicKey: Uint8Array
@@ -43,7 +48,7 @@ type E2ESession = {
 	registrationId: number
 	identityKey: Uint8Array
 	signedPreKey: SignedPreKey
-	preKey: PreKey
+	preKey?: PreKey
 }
 
 type E2ESessionOpts = {
@@ -63,6 +68,9 @@ export type SignalRepository = {
 		senderKeyDistributionMessage: Uint8Array
 		ciphertext: Uint8Array
 	}>
+	getSenderKeyDistributionMessage(opts: GetSenderKeyDistributionMessageOpts): Promise<Uint8Array>
+	hasSenderKey(opts: GetSenderKeyDistributionMessageOpts): Promise<boolean>
+	getSessionInfo(jid: string): Promise<{ baseKey: Uint8Array; registrationId: number } | null>
 	injectE2ESession(opts: E2ESessionOpts): Promise<void>
 	validateSession(jid: string): Promise<{ exists: boolean; reason?: string }>
 	jidToSignalProtocolAddress(jid: string): string
@@ -75,5 +83,6 @@ export type SignalRepository = {
 // Optimized repository with pre-loaded LID mapping store
 export interface SignalRepositoryWithLIDStore extends SignalRepository {
 	lidMapping: LIDMappingStore
+	close?: () => void
 }
 
