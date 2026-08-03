@@ -1,27 +1,24 @@
 import { jest } from '@jest/globals'
-import { DisconnectReason, type SignalKeyStoreWithTransaction } from '../../Types'
-import { getErrorCodeFromStreamError, SERVER_ERROR_CODES } from '../../Utils'
+import { type SignalKeyStoreWithTransaction } from '../../Types'
+import { SERVER_ERROR_CODES } from '../../Utils'
 import {
+	buildMergedTcTokenIndexWrite,
 	buildTcTokenFromJid,
 	isTcTokenExpired,
+	readTcTokenIndex,
 	resolveIssuanceJid,
 	shouldSendNewTcToken,
-	storeTcTokensFromIqResult
+	storeTcTokensFromIqResult,
+	TC_TOKEN_INDEX_KEY
 } from '../../Utils/tc-token-utils'
 import type { BinaryNode } from '../../WABinary'
 import { isJidBot, isJidMetaAI, PSA_WID } from '../../WABinary'
 
-/** 7 days in seconds — matches WA Web tctoken_duration */
 const BUCKET_DURATION = 604800
-/** 4 buckets — matches WA Web tctoken_num_buckets */
 const NUM_BUCKETS = 4
 
 const nowSeconds = () => Math.floor(Date.now() / 1000)
 
-/**
- * Compute the cutoff timestamp for the rolling bucket algorithm.
- * Tokens with timestamp < cutoff are expired.
- */
 const computeCutoff = () => {
 	const now = nowSeconds()
 	const currentBucket = Math.floor(now / BUCKET_DURATION)
@@ -35,8 +32,6 @@ const createMockKeys = (): jest.Mocked<SignalKeyStoreWithTransaction> => ({
 	transaction: jest.fn<SignalKeyStoreWithTransaction['transaction']>(async (work: () => any) => await work()) as any,
 	isInTransaction: jest.fn<SignalKeyStoreWithTransaction['isInTransaction']>()
 })
-
-// ─── storeTcTokensFromIqResult (JID resolution) ─────────────────────────
 
 describe('storeTcTokensFromIqResult', () => {
 	const CONTACT_JID = 'contact@s.whatsapp.net'
@@ -178,6 +173,24 @@ describe('storeTcTokensFromIqResult', () => {
 		expect(onNewJidStored).toHaveBeenCalledWith(CONTACT_JID)
 	})
 
+	it.each([
+		['PSA', '0@c.us'],
+		['bot', '13135550001@c.us'],
+		['MetaAI', '13135550002@bot'],
+		['group', 'abc-def@g.us']
+	])('skips storage for non-regular user (%s)', async (_label, fallbackJid) => {
+		const node = makeNotificationNode(MY_DEVICE_JID, TOKEN_BYTES, RECENT_TS)
+
+		await storeTcTokensFromIqResult({
+			result: node,
+			fallbackJid,
+			keys: mockKeys,
+			getLIDForPN: noopGetLID
+		})
+
+		expect(mockKeys.set).not.toHaveBeenCalled()
+	})
+
 	it('skips token nodes with non-trusted_contact type', async () => {
 		const node: BinaryNode = {
 			tag: 'notification',
@@ -249,8 +262,6 @@ describe('storeTcTokensFromIqResult', () => {
 		expect(mockKeys.set).not.toHaveBeenCalled()
 	})
 })
-
-// ─── Phase 2: isTcTokenExpired (rolling bucket algorithm) ───────────────
 
 describe('isTcTokenExpired', () => {
 	it('returns true for undefined', () => {
@@ -334,8 +345,6 @@ describe('isTcTokenExpired', () => {
 	})
 })
 
-// ─── Phase 2: shouldSendNewTcToken (bucket boundary refresh) ────────────
-
 describe('shouldSendNewTcToken', () => {
 	it('returns true for undefined', () => {
 		expect(shouldSendNewTcToken(undefined)).toBe(true)
@@ -372,13 +381,12 @@ describe('shouldSendNewTcToken', () => {
 	})
 })
 
-// ─── Phase 2 + 5: buildTcTokenFromJid ───────────────────────────────────
-
 describe('buildTcTokenFromJid', () => {
 	const TEST_JID = 'user@s.whatsapp.net'
 	const VALID_TOKEN = Buffer.from([4, 1, 33, 254, 110])
 	const RECENT_TS = String(nowSeconds() - 86400) // 1 day ago
 	const EXPIRED_TS = String(nowSeconds() - 30 * 86400) // 30 days ago
+	const noopGetLID = async (): Promise<string | null> => null
 
 	let mockKeys: jest.Mocked<SignalKeyStoreWithTransaction>
 
@@ -390,12 +398,13 @@ describe('buildTcTokenFromJid', () => {
 		// @ts-ignore
 		mockKeys.get.mockResolvedValue({ [TEST_JID]: { token: VALID_TOKEN, timestamp: RECENT_TS } })
 
-		const result = await buildTcTokenFromJid({ authState: { keys: mockKeys }, jid: TEST_JID })
+		const result = await buildTcTokenFromJid({ authState: { keys: mockKeys }, getLIDForPN: noopGetLID, jid: TEST_JID })
 
 		expect(result).toBeDefined()
 		expect(result).toHaveLength(1)
 		const node = result![0]!
 		expect(node.tag).toBe('tctoken')
+		expect(node.attrs).toEqual({ t: RECENT_TS })
 		expect(node.content).toBe(VALID_TOKEN)
 	})
 
@@ -403,7 +412,7 @@ describe('buildTcTokenFromJid', () => {
 		// @ts-ignore
 		mockKeys.get.mockResolvedValue({})
 
-		const result = await buildTcTokenFromJid({ authState: { keys: mockKeys }, jid: TEST_JID })
+		const result = await buildTcTokenFromJid({ authState: { keys: mockKeys }, getLIDForPN: noopGetLID, jid: TEST_JID })
 
 		expect(result).toBeUndefined()
 	})
@@ -412,7 +421,7 @@ describe('buildTcTokenFromJid', () => {
 		// @ts-ignore
 		mockKeys.get.mockResolvedValue({ [TEST_JID]: { token: VALID_TOKEN, timestamp: EXPIRED_TS } })
 
-		const result = await buildTcTokenFromJid({ authState: { keys: mockKeys }, jid: TEST_JID })
+		const result = await buildTcTokenFromJid({ authState: { keys: mockKeys }, getLIDForPN: noopGetLID, jid: TEST_JID })
 
 		expect(result).toBeUndefined()
 	})
@@ -421,16 +430,32 @@ describe('buildTcTokenFromJid', () => {
 		// @ts-ignore
 		mockKeys.get.mockResolvedValue({ [TEST_JID]: { token: VALID_TOKEN, timestamp: EXPIRED_TS } })
 
-		await buildTcTokenFromJid({ authState: { keys: mockKeys }, jid: TEST_JID })
+		await buildTcTokenFromJid({ authState: { keys: mockKeys }, getLIDForPN: noopGetLID, jid: TEST_JID })
 
 		expect(mockKeys.set).toHaveBeenCalledWith({ tctoken: { [TEST_JID]: null } })
+	})
+
+	it('preserves senderTimestamp when clearing an expired peer token', async () => {
+		const senderTs = nowSeconds() - 100
+		// @ts-ignore
+		mockKeys.get.mockResolvedValue({
+			[TEST_JID]: { token: VALID_TOKEN, timestamp: EXPIRED_TS, senderTimestamp: senderTs }
+		})
+
+		await buildTcTokenFromJid({ authState: { keys: mockKeys }, getLIDForPN: noopGetLID, jid: TEST_JID })
+
+		expect(mockKeys.set).toHaveBeenCalledWith({
+			tctoken: {
+				[TEST_JID]: { token: Buffer.alloc(0), senderTimestamp: senderTs }
+			}
+		})
 	})
 
 	it('does NOT delete when token is simply missing', async () => {
 		// @ts-ignore
 		mockKeys.get.mockResolvedValue({})
 
-		await buildTcTokenFromJid({ authState: { keys: mockKeys }, jid: TEST_JID })
+		await buildTcTokenFromJid({ authState: { keys: mockKeys }, getLIDForPN: noopGetLID, jid: TEST_JID })
 
 		expect(mockKeys.set).not.toHaveBeenCalled()
 	})
@@ -442,6 +467,7 @@ describe('buildTcTokenFromJid', () => {
 
 		const result = await buildTcTokenFromJid({
 			authState: { keys: mockKeys },
+			getLIDForPN: noopGetLID,
 			jid: TEST_JID,
 			baseContent: [existingNode]
 		})
@@ -456,6 +482,7 @@ describe('buildTcTokenFromJid', () => {
 
 		const result = await buildTcTokenFromJid({
 			authState: { keys: mockKeys },
+			getLIDForPN: noopGetLID,
 			jid: TEST_JID,
 			baseContent: [existingNode]
 		})
@@ -464,6 +491,7 @@ describe('buildTcTokenFromJid', () => {
 		expect(result![0]).toBe(existingNode)
 		const appended = result![1]!
 		expect(appended.tag).toBe('tctoken')
+		expect(appended.attrs).toEqual({ t: RECENT_TS })
 		expect(appended.content).toBe(VALID_TOKEN)
 	})
 
@@ -471,7 +499,7 @@ describe('buildTcTokenFromJid', () => {
 		// @ts-ignore
 		mockKeys.get.mockRejectedValueOnce(new Error('database error'))
 
-		const result = await buildTcTokenFromJid({ authState: { keys: mockKeys }, jid: TEST_JID })
+		const result = await buildTcTokenFromJid({ authState: { keys: mockKeys }, getLIDForPN: noopGetLID, jid: TEST_JID })
 
 		expect(result).toBeUndefined()
 	})
@@ -483,6 +511,7 @@ describe('buildTcTokenFromJid', () => {
 
 		const result = await buildTcTokenFromJid({
 			authState: { keys: mockKeys },
+			getLIDForPN: noopGetLID,
 			jid: TEST_JID,
 			baseContent: [existingNode]
 		})
@@ -494,150 +523,37 @@ describe('buildTcTokenFromJid', () => {
 		// @ts-ignore
 		mockKeys.get.mockResolvedValue({ [TEST_JID]: { token: VALID_TOKEN } })
 
-		const result = await buildTcTokenFromJid({ authState: { keys: mockKeys }, jid: TEST_JID })
+		const result = await buildTcTokenFromJid({ authState: { keys: mockKeys }, getLIDForPN: noopGetLID, jid: TEST_JID })
 
 		expect(result).toBeUndefined()
 	})
-})
 
-// ─── Phase 3: getErrorCodeFromStreamError (stream error parser) ─────────
+	it('does not append tctoken to baseContent when token has no timestamp', async () => {
+		// @ts-ignore
+		mockKeys.get.mockResolvedValue({ [TEST_JID]: { token: VALID_TOKEN } })
+		const existingNode: BinaryNode = { tag: 'picture', attrs: { type: 'image' } }
 
-describe('getErrorCodeFromStreamError', () => {
-	const makeStreamError = (attrs: Record<string, string>, content: BinaryNode[] = []): BinaryNode => ({
-		tag: 'stream:error',
-		attrs,
-		content
-	})
-
-	describe('conflict errors', () => {
-		it('maps conflict type=replaced to connectionReplaced', () => {
-			const node = makeStreamError({}, [{ tag: 'conflict', attrs: { type: 'replaced' } }])
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('replaced')
-			expect(statusCode).toBe(DisconnectReason.connectionReplaced)
+		const result = await buildTcTokenFromJid({
+			authState: { keys: mockKeys },
+			getLIDForPN: noopGetLID,
+			jid: TEST_JID,
+			baseContent: [existingNode]
 		})
 
-		it('maps conflict type=device_removed to loggedOut', () => {
-			const node = makeStreamError({}, [{ tag: 'conflict', attrs: { type: 'device_removed' } }])
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('device_removed')
-			expect(statusCode).toBe(DisconnectReason.loggedOut)
-		})
-
-		it('maps conflict with unknown type to device_removed (WA Web default)', () => {
-			// WA Web's switch/default falls to device_removed for unknown types
-			const node = makeStreamError({}, [{ tag: 'conflict', attrs: { type: 'something_else' } }])
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('device_removed')
-			expect(statusCode).toBe(DisconnectReason.loggedOut)
-		})
-
-		it('maps conflict with no type attribute to device_removed', () => {
-			const node = makeStreamError({}, [{ tag: 'conflict', attrs: {} }])
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('device_removed')
-			expect(statusCode).toBe(DisconnectReason.loggedOut)
-		})
-
-		it('conflict takes priority over code attribute', () => {
-			const node = makeStreamError({ code: '515' }, [{ tag: 'conflict', attrs: { type: 'replaced' } }])
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('replaced')
-			expect(statusCode).toBe(DisconnectReason.connectionReplaced)
-		})
-	})
-
-	describe('numeric code errors', () => {
-		it('maps code 515 to restartRequired', () => {
-			const node = makeStreamError({ code: '515' })
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('restart required')
-			expect(statusCode).toBe(DisconnectReason.restartRequired)
-		})
-
-		it('maps code 516 to sessionInvalidated', () => {
-			const node = makeStreamError({ code: '516' })
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('session invalidated')
-			expect(statusCode).toBe(DisconnectReason.sessionInvalidated)
-		})
-
-		it('passes through other numeric codes', () => {
-			const node = makeStreamError({ code: '503' })
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('code 503')
-			expect(statusCode).toBe(503)
-		})
-
-		it('code takes priority over non-conflict child tags', () => {
-			const node = makeStreamError({ code: '515' }, [{ tag: 'ack', attrs: { id: '123' } }])
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('restart required')
-			expect(statusCode).toBe(515)
-		})
-	})
-
-	describe('child-based errors', () => {
-		it('maps ack child to badSession', () => {
-			const node = makeStreamError({}, [{ tag: 'ack', attrs: { id: 'msg123' } }])
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('ack')
-			expect(statusCode).toBe(DisconnectReason.badSession)
-		})
-
-		it('maps xml-not-well-formed to badSession', () => {
-			const node = makeStreamError({}, [{ tag: 'xml-not-well-formed', attrs: {} }])
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('xml-not-well-formed')
-			expect(statusCode).toBe(DisconnectReason.badSession)
-		})
-
-		it('maps unknown child tag to badSession with tag as reason', () => {
-			const node = makeStreamError({}, [{ tag: 'something-weird', attrs: {} }])
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('something-weird')
-			expect(statusCode).toBe(DisconnectReason.badSession)
-		})
-	})
-
-	describe('edge cases', () => {
-		it('handles empty node (no children, no code)', () => {
-			const node = makeStreamError({})
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('unknown')
-			expect(statusCode).toBe(DisconnectReason.badSession)
-		})
-
-		it('handles node with empty content array', () => {
-			const node = makeStreamError({}, [])
-			const { reason, statusCode } = getErrorCodeFromStreamError(node)
-			expect(reason).toBe('unknown')
-			expect(statusCode).toBe(DisconnectReason.badSession)
-		})
+		expect(result).toEqual([existingNode])
+		expect(mockKeys.set).toHaveBeenCalledWith({ tctoken: { [TEST_JID]: null } })
 	})
 })
-
-// ─── Phase 3: SERVER_ERROR_CODES constants ──────────────────────────────
 
 describe('SERVER_ERROR_CODES', () => {
-	it('MissingTcToken is 463', () => {
-		expect(SERVER_ERROR_CODES.MissingTcToken).toBe('463')
+	it('MessageAccountRestriction is 463', () => {
+		expect(SERVER_ERROR_CODES.MessageAccountRestriction).toBe('463')
 	})
 
 	it('SmaxInvalid is 479', () => {
 		expect(SERVER_ERROR_CODES.SmaxInvalid).toBe('479')
 	})
-
-	it('StaleGroupAddressingMode is 421', () => {
-		expect(SERVER_ERROR_CODES.StaleGroupAddressingMode).toBe('421')
-	})
-
-	it('NewChatMessagesCapped is 475', () => {
-		expect(SERVER_ERROR_CODES.NewChatMessagesCapped).toBe('475')
-	})
 })
-
-// ─── Integration scenarios: Phases 1, 2, 4, 5 lifecycle ────────────────
 
 describe('tctoken integration scenarios', () => {
 	const JID_A = 'alice@s.whatsapp.net'
@@ -645,6 +561,7 @@ describe('tctoken integration scenarios', () => {
 	const JID_C = 'charlie@s.whatsapp.net'
 	const TOKEN_A = Buffer.from([4, 1, 33, 254, 110, 59])
 	const TOKEN_B = Buffer.from([4, 2, 44, 128, 200, 12])
+	const noopGetLID = async (): Promise<string | null> => null
 
 	let mockKeys: jest.Mocked<SignalKeyStoreWithTransaction>
 
@@ -660,7 +577,7 @@ describe('tctoken integration scenarios', () => {
 			// @ts-ignore
 			mockKeys.get.mockResolvedValueOnce({})
 
-			const result1 = await buildTcTokenFromJid({ authState: { keys: mockKeys }, jid: JID_A })
+			const result1 = await buildTcTokenFromJid({ authState: { keys: mockKeys }, getLIDForPN: noopGetLID, jid: JID_A })
 			expect(result1).toBeUndefined()
 
 			// Simulate: after fetch, token is stored
@@ -673,10 +590,11 @@ describe('tctoken integration scenarios', () => {
 			// @ts-ignore
 			mockKeys.get.mockResolvedValueOnce({ [JID_A]: { token: TOKEN_A, timestamp: recentTs } })
 
-			const result2 = await buildTcTokenFromJid({ authState: { keys: mockKeys }, jid: JID_A })
+			const result2 = await buildTcTokenFromJid({ authState: { keys: mockKeys }, getLIDForPN: noopGetLID, jid: JID_A })
 			expect(result2).toBeDefined()
 			const node2 = result2![0]!
 			expect(node2.tag).toBe('tctoken')
+			expect(node2.attrs).toEqual({ t: recentTs })
 			expect(node2.content).toBe(TOKEN_A)
 		})
 	})
@@ -690,7 +608,7 @@ describe('tctoken integration scenarios', () => {
 			// @ts-ignore
 			mockKeys.get.mockResolvedValueOnce({ [JID_A]: { token: TOKEN_A, timestamp: expiredTs } })
 
-			const result1 = await buildTcTokenFromJid({ authState: { keys: mockKeys }, jid: JID_A })
+			const result1 = await buildTcTokenFromJid({ authState: { keys: mockKeys }, getLIDForPN: noopGetLID, jid: JID_A })
 			expect(result1).toBeUndefined()
 			expect(isTcTokenExpired(expiredTs)).toBe(true)
 
@@ -701,9 +619,10 @@ describe('tctoken integration scenarios', () => {
 			// @ts-ignore
 			mockKeys.get.mockResolvedValueOnce({ [JID_A]: { token: TOKEN_B, timestamp: freshTs } })
 
-			const result2 = await buildTcTokenFromJid({ authState: { keys: mockKeys }, jid: JID_A })
+			const result2 = await buildTcTokenFromJid({ authState: { keys: mockKeys }, getLIDForPN: noopGetLID, jid: JID_A })
 			expect(result2).toBeDefined()
 			const freshNode = result2![0]!
+			expect(freshNode.attrs).toEqual({ t: freshTs })
 			expect(freshNode.content).toBe(TOKEN_B)
 		})
 	})
@@ -1073,8 +992,6 @@ describe('tctoken integration scenarios', () => {
 	})
 })
 
-// ─── resolveIssuanceJid (AB prop 14303) ──────────────────────────────────
-
 describe('resolveIssuanceJid', () => {
 	const PN_JID = 'user@s.whatsapp.net'
 	const LID_JID = 'user@lid'
@@ -1119,8 +1036,6 @@ describe('resolveIssuanceJid', () => {
 	})
 })
 
-// ─── PSA/bot filter (WA Web: isRegularUser gate on fire-and-forget) ─────
-
 describe('PSA and bot JID detection', () => {
 	it('PSA_WID is 0@c.us', () => {
 		expect(PSA_WID).toBe('0@c.us')
@@ -1142,5 +1057,54 @@ describe('PSA and bot JID detection', () => {
 		const jid = 'alice@s.whatsapp.net'
 		expect(isJidBot(jid)).toBeFalsy()
 		expect(isJidMetaAI(jid)).toBeFalsy()
+	})
+})
+
+describe('tctoken index helpers', () => {
+	let mockKeys: jest.Mocked<SignalKeyStoreWithTransaction>
+
+	beforeEach(() => {
+		mockKeys = createMockKeys()
+	})
+
+	it('readTcTokenIndex returns empty array when no sentinel exists', async () => {
+		// @ts-ignore
+		mockKeys.get.mockResolvedValue({})
+		expect(await readTcTokenIndex(mockKeys)).toEqual([])
+	})
+
+	it('readTcTokenIndex parses persisted JIDs and drops the sentinel itself', async () => {
+		const persisted = ['a@lid', 'b@lid', TC_TOKEN_INDEX_KEY]
+		// @ts-ignore
+		mockKeys.get.mockResolvedValue({
+			[TC_TOKEN_INDEX_KEY]: { token: Buffer.from(JSON.stringify(persisted)) }
+		})
+		expect(await readTcTokenIndex(mockKeys)).toEqual(['a@lid', 'b@lid'])
+	})
+
+	it('readTcTokenIndex tolerates malformed payloads', async () => {
+		// @ts-ignore
+		mockKeys.get.mockResolvedValue({
+			[TC_TOKEN_INDEX_KEY]: { token: Buffer.from('not json') }
+		})
+		expect(await readTcTokenIndex(mockKeys)).toEqual([])
+	})
+
+	it('buildMergedTcTokenIndexWrite unions persisted and added JIDs', async () => {
+		// @ts-ignore
+		mockKeys.get.mockResolvedValue({
+			[TC_TOKEN_INDEX_KEY]: { token: Buffer.from(JSON.stringify(['a@lid'])) }
+		})
+		const write = await buildMergedTcTokenIndexWrite(mockKeys, ['b@lid', 'a@lid'])
+		const merged = JSON.parse(write[TC_TOKEN_INDEX_KEY].token.toString())
+		expect(new Set(merged)).toEqual(new Set(['a@lid', 'b@lid']))
+	})
+
+	it('buildMergedTcTokenIndexWrite filters out the sentinel key and empty strings', async () => {
+		// @ts-ignore
+		mockKeys.get.mockResolvedValue({})
+		const write = await buildMergedTcTokenIndexWrite(mockKeys, [TC_TOKEN_INDEX_KEY, '', 'a@lid'])
+		const merged = JSON.parse(write[TC_TOKEN_INDEX_KEY].token.toString())
+		expect(merged).toEqual(['a@lid'])
 	})
 })

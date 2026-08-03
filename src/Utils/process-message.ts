@@ -1,3 +1,4 @@
+import { Boom } from '@hapi/boom'
 import { proto } from '../../WAProto/index.js'
 import type {
 	AuthenticationCreds,
@@ -28,12 +29,12 @@ import {
 	jidDecode,
 	jidEncode,
 	jidNormalizedUser
-} from '../WABinary/index.js'
-import { aesDecryptGCM, hmacSign } from './crypto.js'
-import { getKeyAuthor, toNumber } from './generics.js'
-import { downloadAndProcessHistorySyncNotification } from './history.js'
-import type { ILogger } from './logger.js'
-import { resolveTcTokenJid } from './tc-token-utils.js'
+} from '../WABinary'
+import { aesDecryptGCM, hmacSign } from './crypto'
+import { getKeyAuthor, toNumber } from './generics'
+import { downloadAndProcessHistorySyncNotification } from './history'
+import type { ILogger } from './logger'
+import { buildMergedTcTokenIndexWrite, resolveTcTokenJid } from './tc-token-utils'
 
 type ProcessMessageContext = {
 	shouldProcessHistoryMsg: boolean
@@ -64,8 +65,6 @@ async function storeTcTokensFromHistorySync(
 ) {
 	const getLIDForPN = signalRepository.lidMapping.getLIDForPN.bind(signalRepository.lidMapping)
 
-	// Collect candidates: only chats with token AND a timestamp (tokens without
-	// timestamps are immediately expired by isTcTokenExpired, so skip them)
 	const candidates: { storageJid: string; token: Buffer; ts: number; senderTs?: number }[] = []
 	for (const chat of chats) {
 		const ts = chat.tcTokenTimestamp ? toNumber(chat.tcTokenTimestamp) : 0
@@ -85,28 +84,31 @@ async function storeTcTokensFromHistorySync(
 		return
 	}
 
-	// Monotonicity guard: don't overwrite fresher tokens from notifications
 	const jids = candidates.map(c => c.storageJid)
 	const existing = await keyStore.get('tctoken', jids)
 	const entries: Record<string, { token: Buffer; timestamp?: string; senderTimestamp?: number }> = {}
 
 	for (const c of candidates) {
-		const existingTs = existing[c.storageJid]?.timestamp ? Number(existing[c.storageJid]!.timestamp) : 0
+		const existingEntry = existing[c.storageJid]
+		const existingTs = existingEntry?.timestamp ? Number(existingEntry.timestamp) : 0
 		if (existingTs > 0 && existingTs >= c.ts) {
 			continue
 		}
 
 		entries[c.storageJid] = {
+			...existingEntry,
 			token: c.token,
 			timestamp: String(c.ts),
-			...(c.senderTs ? { senderTimestamp: c.senderTs } : {})
+			...(c.senderTs !== undefined ? { senderTimestamp: c.senderTs } : {})
 		}
 	}
 
 	if (Object.keys(entries).length) {
 		logger?.debug({ count: Object.keys(entries).length }, 'storing tctokens from history sync')
 		try {
-			await keyStore.set({ tctoken: entries })
+			// Include updated __index so cross-session pruning picks these JIDs up.
+			const indexWrite = await buildMergedTcTokenIndexWrite(keyStore, Object.keys(entries))
+			await keyStore.set({ tctoken: { ...entries, ...indexWrite } })
 		} catch (err) {
 			logger?.warn({ err }, 'failed to store tctokens from history sync')
 		}
@@ -186,12 +188,24 @@ export const shouldIncrementChatUnread = (message: WAMessage) => !message.key.fr
  * Get the ID of the chat from the given key.
  * Typically -- that'll be the remoteJid, but for broadcasts, it'll be the participant
  */
-export const getChatId = ({ remoteJid, participant, fromMe }: WAMessageKey) => {
-	if (isJidBroadcast(remoteJid!) && !isJidStatusBroadcast(remoteJid!) && !fromMe) {
-		return participant!
+export const getChatId = ({ remoteJid, participant, fromMe }: WAMessageKey): string => {
+	if (!remoteJid) {
+		throw new Boom('Cannot derive chat id: message key is missing remoteJid', {
+			data: { remoteJid, participant, fromMe }
+		})
 	}
 
-	return remoteJid!
+	if (isJidBroadcast(remoteJid) && !isJidStatusBroadcast(remoteJid) && !fromMe) {
+		if (!participant) {
+			throw new Boom('Cannot derive chat id: broadcast message key is missing participant', {
+				data: { remoteJid, fromMe }
+			})
+		}
+
+		return participant
+	}
+
+	return remoteJid
 }
 
 type PollContext = {
@@ -316,6 +330,45 @@ const processMessage = async (
 
 	const protocolMsg = content?.protocolMessage
 	if (protocolMsg) {
+		// Mirror whatsmeow's `handleProtocolMessage` guard, but applied only to
+		// the protocol message types that originate from our own device — an
+		// attacker could otherwise spoof any of these to manipulate local state.
+		//
+		// Self-only types (drop if `!fromMe`):
+		//   - HISTORY_SYNC_NOTIFICATION                 (our phone driving history sync)
+		//   - APP_STATE_SYNC_KEY_SHARE                  (key share between our devices)
+		//   - LID_MIGRATION_MAPPING_SYNC                (server-initiated via our phone)
+		//   - PEER_DATA_OPERATION_REQUEST_RESPONSE_MESSAGE (response from our phone to our PDO request)
+		//
+		// Cross-user types (must NOT be dropped — legitimately arrive from others):
+		//   - REVOKE
+		//   - MESSAGE_EDIT
+		//   - EPHEMERAL_SETTING
+		//   - GROUP_MEMBER_LABEL_CHANGE
+		//
+		// See https://github.com/tulir/whatsmeow/blob/8d3700152a/message.go#L842-L845
+		// for the reference architecture — whatsmeow's `handleProtocolMessage`
+		// only contains self-only types because edits are unwrapped from
+		// `EditedMessage` BEFORE this dispatch and revokes aren't routed here.
+		const SELF_ONLY_TYPES = new Set<proto.Message.ProtocolMessage.Type>([
+			proto.Message.ProtocolMessage.Type.HISTORY_SYNC_NOTIFICATION,
+			proto.Message.ProtocolMessage.Type.APP_STATE_SYNC_KEY_SHARE,
+			proto.Message.ProtocolMessage.Type.LID_MIGRATION_MAPPING_SYNC,
+			proto.Message.ProtocolMessage.Type.PEER_DATA_OPERATION_REQUEST_RESPONSE_MESSAGE
+		])
+		if (
+			protocolMsg.type !== null &&
+			protocolMsg.type !== undefined &&
+			SELF_ONLY_TYPES.has(protocolMsg.type) &&
+			!message.key.fromMe
+		) {
+			logger?.warn(
+				{ msgId: message.key.id, type: protocolMsg.type, from: message.key.participant || message.key.remoteJid },
+				'dropping spoofed self-only protocolMessage from non-self origin'
+			)
+			return
+		}
+
 		switch (protocolMsg.type) {
 			case proto.Message.ProtocolMessage.Type.HISTORY_SYNC_NOTIFICATION:
 				const histNotification = protocolMsg.historySyncNotification!
@@ -357,6 +410,7 @@ const processMessage = async (
 					ev.emit('messaging-history.set', {
 						...data,
 						isLatest: histNotification.syncType !== proto.HistorySync.HistorySyncType.ON_DEMAND ? isLatest : undefined,
+						chunkOrder: histNotification.chunkOrder,
 						peerDataRequestSessionId: histNotification.peerDataRequestSessionId
 					})
 				}
@@ -579,12 +633,19 @@ const processMessage = async (
 				id: jid,
 				author: message.key.participant!,
 				authorPn: message.key.participantAlt!,
+				authorUsername: message.key.participantUsername!,
 				participants,
 				action
 			})
 		const emitGroupUpdate = (update: Partial<GroupMetadata>) => {
 			ev.emit('groups.update', [
-				{ id: jid, ...update, author: message.key.participant ?? undefined, authorPn: message.key.participantAlt }
+				{
+					id: jid,
+					...update,
+					author: message.key.participant ?? undefined,
+					authorPn: message.key.participantAlt,
+					authorUsername: message.key.participantUsername
+				}
 			])
 		}
 
@@ -593,6 +654,7 @@ const processMessage = async (
 				id: jid,
 				author: message.key.participant!,
 				authorPn: message.key.participantAlt!,
+				authorUsername: message.key.participantUsername!,
 				participant: participant.lid,
 				participantPn: participant.pn,
 				action,

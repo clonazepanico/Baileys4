@@ -74,8 +74,8 @@ export const getUrlInfo = async (
 ): Promise<WAUrlInfo | undefined> => {
 	try {
 		// retries
-		const retries = 0
-		const maxRetry = 2
+		let retries = 0
+		const maxRetry = 5
 
 		const { getLinkPreview } = await import('link-preview-js')
 		let previewLink = text
